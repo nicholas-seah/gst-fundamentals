@@ -1,0 +1,25 @@
+[build]
+  command = "npm install && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[dev]
+  command = "npm run dev"
+  port = 4321
+  targetPort = 4321
+
+[functions]
+  external_node_modules = ["@prisma/client", "@astrojs/react"]
+  node_bundler = "esbuild"
+
+# Headers to allow embedding in main GridStor Analytics site
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    Content-Security-Policy = "frame-ancestors 'self' https://gridstoranalytics.com https://*.gridstoranalytics.com"
+
+# No password protection - remove any authentication middleware
+# No conflicting redirects - let main site handle routing 
