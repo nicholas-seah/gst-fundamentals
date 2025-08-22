@@ -1,0 +1,22 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import BESSCapacityChart from '../../../components/common/BESSCapacityChart';
+---
+
+<Layout title="BESS Capacity">
+  <main class="flex-1 p-8">
+    <div class="max-w-7xl mx-auto space-y-8">
+      <!-- Page Header -->
+      <div class="space-y-2">
+        <h1 class="text-3xl font-bold text-gs-dark">BESS Capacity</h1>
+        <p class="text-lg text-gray-600">Battery Energy Storage System capacity analysis, tracking deployment trends and grid-scale storage infrastructure development.</p>
+      </div>
+
+      <!-- BESS Capacity Section -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 class="text-2xl font-semibold text-gs-dark mb-4">ERCOT Monthly BESS Capacity Growth & Projections</h2>
+        <BESSCapacityChart client:only="react" />
+      </div>
+    </div>
+  </main>
+</Layout> 

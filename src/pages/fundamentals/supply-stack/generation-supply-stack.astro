@@ -1,0 +1,19 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import InteractiveSupplyCurveDashboard from '../../../components/common/InteractiveSupplyCurveDashboard.tsx';
+---
+
+<Layout title="Generation Supply Stack">
+  <main class="flex-1 p-8">
+    <div class="max-w-7xl mx-auto space-y-8">
+      <!-- Page Header -->
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900 mb-6">Generation Supply Stack</h1>
+        <p class="text-gray-600">Interactive ERCOT supply curve visualization powered by Python Plotly</p>
+      </div>
+      
+      <!-- Supply Curve Dashboard -->
+      <InteractiveSupplyCurveDashboard client:load />
+    </div>
+  </main>
+</Layout> 

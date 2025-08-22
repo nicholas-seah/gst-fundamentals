@@ -1,0 +1,29 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import ERCOTDemandChart from '../../../components/common/ERCOTDemandChart';
+import ERCOTZonalSection from '../../../components/common/ERCOTZonalSection';
+---
+
+<Layout title="Structural Demand">
+  <main class="flex-1 p-8">
+    <div class="max-w-7xl mx-auto space-y-8">
+      <!-- Page Header -->
+      <div class="space-y-2">
+        <h1 class="text-3xl font-bold text-gs-dark">Structural Demand</h1>
+        <p class="text-lg text-gray-600">Underlying electricity consumption that would have occurred under normal temperature conditions, isolating true load growth from weather-driven fluctuations</p>
+      </div>
+
+      <!-- ERCOT Weather Normalized Demand Section -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 class="text-2xl font-semibold text-gs-dark mb-4">ERCOT Weather Normalized Demand</h2>
+        <ERCOTDemandChart client:only="react" />
+      </div>
+
+      <!-- Zonal YoY Growth Chart Section -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 class="text-2xl font-semibold text-gs-dark mb-4">ERCOT Zone Weather Normalized Demand</h2>
+        <ERCOTZonalSection client:only="react" />
+      </div>
+    </div>
+  </main>
+</Layout> 

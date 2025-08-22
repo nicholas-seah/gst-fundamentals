@@ -1,0 +1,31 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL_THIRD")
+}
+
+// ERCOT structural demand model - updated to match actual data structure
+model ERCOT_structural_demand {
+  id     Int     @id @default(autoincrement())
+  Month  String  // Text values like "APRIL", "AUGUST"
+  GWh    String  // Numeric values as string (we'll convert to number)
+  Zone   String  // Houston, North, South, West
+  Year   Int     // 2021, 2022, 2023, 2024
+  
+  @@map("ERCOT_structural_demand")
+}
+
+// ERCOT BESS Capacity Annual model
+model ERCOT_BESS_Capacity_Annual {
+  id                Int      @id @default(autoincrement())
+  Year              Int      // Year of the data
+  Capacity          Float?   // Capacity in MW
+  
+  @@map("ERCOT_BESS_Capacity_Annual")
+} 
