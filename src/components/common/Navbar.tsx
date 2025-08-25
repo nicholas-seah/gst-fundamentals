@@ -1,148 +1,131 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
-const Navbar: React.FC = () => {
-  const [isLoadDropdownOpen, setIsLoadDropdownOpen] = useState(false);
-  const [isSupplyStackDropdownOpen, setIsSupplyStackDropdownOpen] = useState(false);
+export default function Navbar() {
+  // State for active page detection
   const [currentPath, setCurrentPath] = useState('');
-
-  // Track current path for active state
+  
+  // useEffect to detect current page
   useEffect(() => {
     setCurrentPath(window.location.pathname);
-    
-    // Listen for navigation changes (for client-side routing)
-    const handlePopstate = () => {
-      setCurrentPath(window.location.pathname);
-    };
-    window.addEventListener('popstate', handlePopstate);
-    
-    return () => {
-      window.removeEventListener('popstate', handlePopstate);
-    };
   }, []);
 
-  const loadDropdownItems = [
-    { name: 'Structural Demand', href: '/fundamentals/load/weather-normalized-load' },
-  ];
-
-  const supplyStackDropdownItems = [
-    { name: 'Generation Supply Stack', href: '/fundamentals/supply-stack/generation-supply-stack' },
-    { name: 'BESS Capacity', href: '/fundamentals/supply-stack/bess-capacity' },
-  ];
-
-  // Determine active states for new navigation
-  const isNaturalGasActive = currentPath === '/fundamentals/natural-gas';
-  const isLoadActive = currentPath.startsWith('/fundamentals/load/');
-  const isSupplyStackActive = currentPath.startsWith('/fundamentals/supply-stack/');
+  // Helper functions for active state detection
+  const isLikedayActive = currentPath.includes('/likeday');
+  const isPCMActive = currentPath.includes('/pcm/');
+  const isMLActive = currentPath.includes('/ml');
+  const isGOOPActive = currentPath.includes('/goop');
 
   return (
-    <nav className="bg-white border-b border-gray-200 h-16">
-      <div className="max-w-7xl mx-auto h-16 flex items-center px-4 sm:px-6 lg:px-8" style={{ fontFamily: `'Inter', system-ui, -apple-system, sans-serif` }}>
-        {/* Logo */}
-        <div className="flex-shrink-0 flex items-center">
-          <a href="/fundamentals" className="flex items-center">
-            <img src="/logo.svg" alt="Energy Dashboard" className="h-8 w-auto cursor-pointer" />
-            <span className="ml-3 text-xl font-semibold text-gray-900" style={{ fontFamily: `'Inter', system-ui, -apple-system, sans-serif` }}>
-              Fundamentals
-            </span>
-          </a>
-        </div>
-        
-        {/* Navigation */}
-        <div className="hidden sm:flex sm:ml-6 flex h-full space-x-8">
-          {/* Natural Gas Tab */}
-          <a
-            href="/fundamentals/natural-gas"
-            className={`h-full flex items-center px-1 pt-1 text-sm font-medium transition-colors duration-150 border-b-2 ${
-              isNaturalGasActive 
-                ? 'border-indigo-500 text-gray-900' 
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-            style={{ fontFamily: `'Inter', system-ui, -apple-system, sans-serif` }}
-          >
-            Natural Gas
-          </a>
-
-          {/* Load Dropdown */}
-          <div 
-            className="relative h-full flex items-center"
-            onMouseEnter={() => setIsLoadDropdownOpen(true)}
-            onMouseLeave={() => setIsLoadDropdownOpen(false)}
-          >
-            <button
-              className={`h-full flex items-center px-1 pt-1 text-sm font-medium transition-colors duration-150 border-b-2 ${
-                isLoadActive 
-                  ? 'border-indigo-500 text-gray-900' 
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-              style={{ fontFamily: `'Inter', system-ui, -apple-system, sans-serif` }}
+    <header className="bg-[#2A2A2A] text-white shadow-sm">
+      <div className="max-w-7xl mx-auto pl-8 pr-4 sm:pl-10 sm:pr-6 lg:pl-16 lg:pr-8">
+        <div className="flex justify-between items-center py-3">
+          
+          {/* LEFT SIDE: Logo + Brand + Navigation */}
+          <div className="flex items-center gap-7">
+            
+            {/* GridStor Logo */}
+            <a 
+              href="https://gridstoranalytics.com" 
+              className="hover:text-gray-300 transition-colors"
             >
-              Load
-              <svg className="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              <div className="bg-white p-1 flex items-center justify-center">
+                <img src="/GST_logo.svg" alt="GridStor Analytics Logo" className="w-6 h-6" />
+              </div>
+            </a>
+            
+            {/* Market Ops Brand Name */}
+            <a 
+              href="/market-ops" 
+              className="text-lg font-semibold hover:text-gray-300 transition-colors"
+            >
+              Market Ops
+            </a>
+            
+            {/* Main Navigation */}
+            <nav className="hidden lg:flex items-center gap-6">
+              
+              {/* Likeday Tab */}
+              <a
+                href="/market-ops/likeday"
+                className={`text-sm font-medium transition-colors px-3 py-1 ${
+                  isLikedayActive ? 'text-white' : 'text-gray-300 hover:text-white'
+                }`}
+              >
+                Likeday
+              </a>
+
+              {/* PCM Dropdown */}
+              <div className="relative group">
+                <button className={`text-sm font-medium transition-colors px-3 py-1 flex items-center gap-1 ${
+                  isPCMActive ? 'text-white' : 'text-gray-300 hover:text-white'
+                }`}>
+                  PCM
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {/* Dropdown Menu */}
+                <div className="absolute left-0 mt-1 w-48 bg-white rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div className="py-1">
+                    <a href="/market-ops/pcm/caiso-forecast" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                      CAISO Forecast
+                    </a>
+                    <a href="/market-ops/pcm/goleta" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                      Goleta
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              {/* ML Tab */}
+              <a
+                href="/market-ops/ml"
+                className={`text-sm font-medium transition-colors px-3 py-1 ${
+                  isMLActive ? 'text-white' : 'text-gray-300 hover:text-white'
+                }`}
+              >
+                ML
+              </a>
+
+              {/* GOOP Tab */}
+              <a
+                href="/market-ops/goop"
+                className={`text-sm font-medium transition-colors px-3 py-1 ${
+                  isGOOPActive ? 'text-white' : 'text-gray-300 hover:text-white'
+                }`}
+              >
+                GOOP
+              </a>
+              
+            </nav>
+            
+          </div>
+          
+          {/* RIGHT SIDE: Settings + User Icons */}
+          <div className="flex items-center gap-4">
+            
+            {/* Settings Icon */}
+            <button className="text-gray-300 hover:text-white transition-colors">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
+
+            {/* User Icon */}
+            <button className="text-gray-300 hover:text-white transition-colors">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
             </button>
             
-            {/* Dropdown Menu */}
-            {isLoadDropdownOpen && (
-              <div className="absolute top-full left-0 mt-1 w-72 bg-white border border-gray-200 rounded-md shadow-lg z-50">
-                <div className="py-1">
-                  {loadDropdownItems.map((item) => (
-                    <a
-                      key={item.name}
-                      href={item.href}
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-150"
-                      style={{ fontFamily: `'Inter', system-ui, -apple-system, sans-serif` }}
-                    >
-                      {item.name}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
-
-          {/* Supply Stack Dropdown */}
-          <div 
-            className="relative h-full flex items-center"
-            onMouseEnter={() => setIsSupplyStackDropdownOpen(true)}
-            onMouseLeave={() => setIsSupplyStackDropdownOpen(false)}
-          >
-            <button
-              className={`h-full flex items-center px-1 pt-1 text-sm font-medium transition-colors duration-150 border-b-2 ${
-                isSupplyStackActive 
-                  ? 'border-indigo-500 text-gray-900' 
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-              style={{ fontFamily: `'Inter', system-ui, -apple-system, sans-serif` }}
-            >
-              Supply Stack
-              <svg className="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            
-            {/* Dropdown Menu */}
-            {isSupplyStackDropdownOpen && (
-              <div className="absolute top-full left-0 mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg z-50">
-                <div className="py-1">
-                  {supplyStackDropdownItems.map((item) => (
-                    <a
-                      key={item.name}
-                      href={item.href}
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-150"
-                      style={{ fontFamily: `'Inter', system-ui, -apple-system, sans-serif` }}
-                    >
-                      {item.name}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          
         </div>
       </div>
-    </nav>
+    </header>
   );
-};
-
-export default Navbar; 
+}
