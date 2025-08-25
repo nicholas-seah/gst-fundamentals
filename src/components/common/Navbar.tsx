@@ -1,19 +1,38 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
-export default function Navbar() {
-  // State for active page detection
+const Navbar: React.FC = () => {
+  const [isLoadDropdownOpen, setIsLoadDropdownOpen] = useState(false);
+  const [isSupplyStackDropdownOpen, setIsSupplyStackDropdownOpen] = useState(false);
   const [currentPath, setCurrentPath] = useState('');
-  
-  // useEffect to detect current page
+
+  // Track current path for active state
   useEffect(() => {
     setCurrentPath(window.location.pathname);
+    
+    // Listen for navigation changes (for client-side routing)
+    const handlePopstate = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    window.addEventListener('popstate', handlePopstate);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopstate);
+    };
   }, []);
 
-  // Helper functions for active state detection
-  const isLikedayActive = currentPath.includes('/likeday');
-  const isPCMActive = currentPath.includes('/pcm/');
-  const isMLActive = currentPath.includes('/ml');
-  const isGOOPActive = currentPath.includes('/goop');
+  const loadDropdownItems = [
+    { name: 'Structural Demand', href: '/fundamentals/load/weather-normalized-load' },
+  ];
+
+  const supplyStackDropdownItems = [
+    { name: 'Generation Supply Stack', href: '/fundamentals/supply-stack/generation-supply-stack' },
+    { name: 'BESS Capacity', href: '/fundamentals/supply-stack/bess-capacity' },
+  ];
+
+  // Determine active states for navigation
+  const isNaturalGasActive = currentPath === '/fundamentals/natural-gas';
+  const isLoadActive = currentPath.startsWith('/fundamentals/load/');
+  const isSupplyStackActive = currentPath.startsWith('/fundamentals/supply-stack/');
 
   return (
     <header className="bg-[#2A2A2A] text-white shadow-sm">
@@ -33,70 +52,96 @@ export default function Navbar() {
               </div>
             </a>
             
-            {/* Market Ops Brand Name */}
+            {/* Fundamentals Brand Name */}
             <a 
-              href="/market-ops" 
+              href="/fundamentals" 
               className="text-lg font-semibold hover:text-gray-300 transition-colors"
             >
-              Market Ops
+              Fundamentals
             </a>
             
             {/* Main Navigation */}
             <nav className="hidden lg:flex items-center gap-6">
               
-              {/* Likeday Tab */}
+              {/* Natural Gas Tab */}
               <a
-                href="/market-ops/likeday"
+                href="/fundamentals/natural-gas"
                 className={`text-sm font-medium transition-colors px-3 py-1 ${
-                  isLikedayActive ? 'text-white' : 'text-gray-300 hover:text-white'
+                  isNaturalGasActive ? 'text-white' : 'text-gray-300 hover:text-white'
                 }`}
               >
-                Likeday
+                Natural Gas
               </a>
 
-              {/* PCM Dropdown */}
-              <div className="relative group">
-                <button className={`text-sm font-medium transition-colors px-3 py-1 flex items-center gap-1 ${
-                  isPCMActive ? 'text-white' : 'text-gray-300 hover:text-white'
-                }`}>
-                  PCM
+              {/* Load Dropdown */}
+              <div 
+                className="relative"
+                onMouseEnter={() => setIsLoadDropdownOpen(true)}
+                onMouseLeave={() => setIsLoadDropdownOpen(false)}
+              >
+                <button
+                  className={`text-sm font-medium transition-colors px-3 py-1 flex items-center gap-1 ${
+                    isLoadActive ? 'text-white' : 'text-gray-300 hover:text-white'
+                  }`}
+                >
+                  Load
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
                 
                 {/* Dropdown Menu */}
-                <div className="absolute left-0 mt-1 w-48 bg-white rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                  <div className="py-1">
-                    <a href="/market-ops/pcm/caiso-forecast" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                      CAISO Forecast
-                    </a>
-                    <a href="/market-ops/pcm/goleta" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                      Goleta
-                    </a>
+                {isLoadDropdownOpen && (
+                  <div className="absolute left-0 mt-1 w-72 bg-white rounded-md shadow-lg z-50">
+                    <div className="py-1">
+                      {loadDropdownItems.map((item) => (
+                        <a
+                          key={item.name}
+                          href={item.href}
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                        >
+                          {item.name}
+                        </a>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
-              {/* ML Tab */}
-              <a
-                href="/market-ops/ml"
-                className={`text-sm font-medium transition-colors px-3 py-1 ${
-                  isMLActive ? 'text-white' : 'text-gray-300 hover:text-white'
-                }`}
+              {/* Supply Stack Dropdown */}
+              <div 
+                className="relative"
+                onMouseEnter={() => setIsSupplyStackDropdownOpen(true)}
+                onMouseLeave={() => setIsSupplyStackDropdownOpen(false)}
               >
-                ML
-              </a>
-
-              {/* GOOP Tab */}
-              <a
-                href="/market-ops/goop"
-                className={`text-sm font-medium transition-colors px-3 py-1 ${
-                  isGOOPActive ? 'text-white' : 'text-gray-300 hover:text-white'
-                }`}
-              >
-                GOOP
-              </a>
+                <button
+                  className={`text-sm font-medium transition-colors px-3 py-1 flex items-center gap-1 ${
+                    isSupplyStackActive ? 'text-white' : 'text-gray-300 hover:text-white'
+                  }`}
+                >
+                  Supply Stack
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {/* Dropdown Menu */}
+                {isSupplyStackDropdownOpen && (
+                  <div className="absolute left-0 mt-1 w-56 bg-white rounded-md shadow-lg z-50">
+                    <div className="py-1">
+                      {supplyStackDropdownItems.map((item) => (
+                        <a
+                          key={item.name}
+                          href={item.href}
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                        >
+                          {item.name}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
               
             </nav>
             
@@ -128,4 +173,6 @@ export default function Navbar() {
       </div>
     </header>
   );
-}
+};
+
+export default Navbar;
