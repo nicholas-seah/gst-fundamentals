@@ -48,7 +48,7 @@ const Navbar: React.FC = () => {
               className="hover:text-gray-300 transition-colors"
             >
               <div className="bg-white p-1 flex items-center justify-center">
-                <img src="/GST_logo.svg" alt="GridStor Analytics Logo" className="w-6 h-6" />
+                <img src="/logo.svg" alt="GridStor Analytics Logo" className="w-6 h-6" />
               </div>
             </a>
             
