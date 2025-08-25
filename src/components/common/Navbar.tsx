@@ -47,7 +47,7 @@ const Navbar: React.FC = () => {
               href="https://gridstoranalytics.com" 
               className="hover:text-gray-300 transition-colors"
             >
-              <div className="bg-white p-1 flex items-center justify-center w-8 h-8 rounded">
+              <div className="bg-white p-1 flex items-center justify-center w-8 h-8">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-6 h-6">
                   <g transform="translate(2, 2) scale(0.875)">
                     <path d="M4 8 L14 8 L14 11 L7 11 L7 21 L14 21 L14 18 L10 18 L10 15 L14 15 L14 24 L4 24 C4 24 4 8 4 8" 
