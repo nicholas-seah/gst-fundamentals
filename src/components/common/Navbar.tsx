@@ -26,6 +26,7 @@ const Navbar: React.FC = () => {
 
   const supplyStackDropdownItems = [
     { name: 'Generation Supply Stack', href: '/fundamentals/supply-stack/generation-supply-stack' },
+    { name: 'Generation Supply Stack (JS)', href: '/fundamentals/supply-stack/generation-supply-stack-js' },
     { name: 'BESS Capacity', href: '/fundamentals/supply-stack/bess-capacity' },
   ];
 

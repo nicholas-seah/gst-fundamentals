@@ -1,0 +1,15 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import JSSupplyCurveDashboard from '../../../components/common/JSSupplyCurveDashboard.tsx';
+---
+
+<Layout title="Generation Supply Stack (JavaScript)">
+  <main class="pt-0 px-8 pb-8">
+    <div class="space-y-4">
+      
+      <!-- JavaScript Supply Curve Dashboard -->
+      <JSSupplyCurveDashboard client:only="react" />
+      
+    </div>
+  </main>
+</Layout>

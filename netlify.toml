@@ -1,9 +1,10 @@
 [build]
-  command = "npm install && npm run build"
+  command = "pip install -r requirements.txt && npm install && npm run build"
   publish = "dist"
 
 [build.environment]
   NODE_VERSION = "22"
+  PYTHON_VERSION = "3.9"
 
 [dev]
   command = "npm run dev"
