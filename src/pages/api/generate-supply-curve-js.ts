@@ -1,7 +1,5 @@
 import type { APIRoute } from 'astro';
-import Papa from 'papaparse';
-import fs from 'fs/promises';
-import path from 'path';
+import { ercotDb } from '../../lib/database';
 
 interface OfferCurvePoint {
   mw: number;
@@ -32,17 +30,17 @@ export const POST: APIRoute = async ({ request }) => {
     
     console.log(`Generating JS supply curve for ${date} ${hour}:${minute} (${scenario})`);
     
-    // Load and process CSV data
-    const csvData = await loadAndProcessCsv('public/mock_offer_curve_data.csv', date, hour);
+    // Load and process database data
+    const offerCurveData = await loadAndProcessDatabaseData(date, hour);
     
     // Generate the chart configuration
-    const chartConfig = generatePlotlyChart(csvData, date, hour, minute, scenario);
+    const chartConfig = generatePlotlyChart(offerCurveData, date, hour, minute, scenario);
     
     return new Response(JSON.stringify({
       success: true,
       message: 'Chart generated successfully with JavaScript',
       chartConfig: chartConfig,
-      dataPoints: csvData.length
+      dataPoints: offerCurveData.length
     }), {
       status: 200,
       headers: {
@@ -66,68 +64,31 @@ export const POST: APIRoute = async ({ request }) => {
   }
 };
 
-async function loadAndProcessCsv(filePath: string, dateFilter?: string, hourFilter?: string): Promise<ExpandedDataPoint[]> {
+async function loadAndProcessDatabaseData(dateFilter?: string, hourFilter?: string): Promise<ExpandedDataPoint[]> {
   try {
-    // Read CSV file - handle both local and Netlify environments
-    let csvContent: string;
+    console.log('Loading offer curve data from database...');
     
-    try {
-      // Try reading from the standard path first (local development)
-      const csvFilePath = path.join(process.cwd(), filePath);
-      csvContent = await fs.readFile(csvFilePath, 'utf-8');
-    } catch (localError) {
-      // If that fails, try alternative paths for Netlify
-      const alternativePaths = [
-        // Netlify function paths
-        path.join('/var/task/.netlify/functions-internal', filePath),
-        path.join('/var/task/.netlify/build', filePath),
-        path.join('/var/task', filePath.replace('public/', '')), // Remove public/ prefix
-        path.join(process.cwd(), filePath.replace('public/', '')), // Try without public/
-        path.join(process.cwd(), 'dist', filePath),
-        path.join('/var/task/dist', filePath),
-        // Try accessing from root
-        path.resolve(filePath),
-        path.resolve(filePath.replace('public/', '')),
-        filePath // Try relative path as last resort
-      ];
-      
-      let fileFound = false;
-      for (const altPath of alternativePaths) {
-        try {
-          csvContent = await fs.readFile(altPath, 'utf-8');
-          console.log(`Successfully loaded CSV from: ${altPath}`);
-          fileFound = true;
-          break;
-        } catch (altError) {
-          console.log(`Failed to load from ${altPath}: ${altError.message}`);
-        }
-      }
-      
-      if (!fileFound) {
-        throw new Error(`CSV file not found. Tried paths: ${alternativePaths.join(', ')}. Original error: ${localError.message}`);
-      }
-    }
+    // Query the database for offer curve data
+    const rawData = await ercotDb.$queryRaw<Array<{
+      resource_name: string;
+      resource_type: string;
+      sced_tpo_offer_curve: string;
+      interval_start_utc?: Date;
+      sced_timestamp_utc?: Date;
+    }>>`
+      SELECT "resource_name", "resource_type", "sced_tpo_offer_curve", "interval_start_utc", "sced_timestamp_utc"
+      FROM "ERCOT"."ERCOT_Generation_Offer_Curve"
+      ORDER BY "resource_name" ASC
+    `;
     
-    // Parse CSV
-    const parseResult = Papa.parse(csvContent, {
-      header: true,
-      skipEmptyLines: true,
-      dynamicTyping: true
-    });
-    
-    if (parseResult.errors.length > 0) {
-      console.warn('CSV parsing warnings:', parseResult.errors);
-    }
-    
-    const df = parseResult.data as any[];
-    console.log(`Loaded ${df.length} rows from CSV`);
+    console.log(`Loaded ${rawData.length} rows from database`);
     
     // Process data (equivalent to Python logic)
     const expandedData: ExpandedDataPoint[] = [];
     
-    for (let i = 0; i < df.length; i++) {
-      const row = df[i];
-      const curveString = row['sced_tpo_offer_curve'];
+    for (let i = 0; i < rawData.length; i++) {
+      const row = rawData[i];
+      const curveString = row.sced_tpo_offer_curve;
       let prevMw = 0;
       
       // Parse the curve string (equivalent to ast.literal_eval in Python)
@@ -155,13 +116,13 @@ async function loadAndProcessCsv(filePath: string, dateFilter?: string, hourFilt
           const mwSegment = mw - prevMw;
           
           if (mwSegment > 0) {
-          expandedData.push({
-            unit_code: row['resource_name'] || `Unit_${i}`,
-            fuel_type: row['resource_type'] || 'Unknown',
-            mw: mwSegment,
-            price: price,
-            cumulative_mw: 0 // Will be calculated later
-          });
+            expandedData.push({
+              unit_code: row.resource_name || `Unit_${i}`,
+              fuel_type: row.resource_type || 'Unknown',
+              mw: mwSegment,
+              price: price,
+              cumulative_mw: 0 // Will be calculated later
+            });
           }
           prevMw = mw;
         }
@@ -178,12 +139,12 @@ async function loadAndProcessCsv(filePath: string, dateFilter?: string, hourFilt
       point.cumulative_mw = cumulativeMw;
     }
     
-    console.log(`Processed ${expandedData.length} data points`);
+    console.log(`Processed ${expandedData.length} data points from database`);
     return expandedData;
     
   } catch (error) {
-    console.error('Error loading CSV:', error);
-    throw new Error(`Failed to load CSV: ${error}`);
+    console.error('Error loading database data:', error);
+    throw new Error(`Failed to load database data: ${error}`);
   }
 }
 
