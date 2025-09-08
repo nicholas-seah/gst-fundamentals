@@ -1,0 +1,19 @@
+{
+  "structuralDemand": [
+    "Peak demand occurs during summer months (June-September) across all years, showing seasonal cooling loads",
+    "Average demand increases approximately 2-3 GW per year",
+    "Lowest demand months consistently occur in March and November"
+  ],
+  "zonalDemand": [
+    "West zone showed the highest year-over-year growth rates consistently",
+    "Since 2024, Houston's YoY growth rate has exceed that of North and South zones",
+    "The West showed the highest growth rate in 2025, with a 17.3% YoY increase in February",
+    "The South showed the lowest growth rate in 2025, with a 1.1% YoY decrease in May"
+  ],
+  "bessCapacity": [
+    "Rapid expansion of battery storage capacity in ERCOT market",
+    "Significant month-over-month growth in operational BESS installations",
+    "Storage deployment accelerating to support renewable integration", 
+    "Grid-scale batteries becoming critical for market stability and reliability"
+  ]
+}

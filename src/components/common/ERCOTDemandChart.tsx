@@ -10,6 +10,7 @@ import {
   Legend,
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
+import observationsData from '../../Key Insights/bullet-points.json';
 
 ChartJS.register(
   CategoryScale,
@@ -311,22 +312,12 @@ const ERCOTDemandChart: React.FC = () => {
           <div className="bg-gray-100 rounded-lg p-4 h-full">
             <h4 className="text-sm font-semibold text-gs-dark mb-3">Key Observations</h4>
             <ul className="space-y-3 text-xs text-gray-600">
-              <li className="flex items-start gap-2">
-                <div className="w-1 h-1 bg-gray-600 rounded-full mt-2 flex-shrink-0"></div>
-                <span>Peak demand occurs during summer months (July-August) across all years, showing seasonal cooling loads</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <div className="w-1 h-1 bg-gray-600 rounded-full mt-2 flex-shrink-0"></div>
-                <span>Data represents average power demand (MW Avg.) converted from monthly energy totals</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <div className="w-1 h-1 bg-gray-600 rounded-full mt-2 flex-shrink-0"></div>
-                <span>Consistent seasonal patterns with winter and spring lows across Texas</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <div className="w-1 h-1 bg-gray-600 rounded-full mt-2 flex-shrink-0"></div>
-                <span>Aggregated weather-normalized data from all ERCOT zones</span>
-              </li>
+              {observationsData.structuralDemand.map((observation, index) => (
+                <li key={index} className="flex items-start gap-2">
+                  <div className="w-1 h-1 bg-gray-600 rounded-full mt-2 flex-shrink-0"></div>
+                  <span>{observation}</span>
+                </li>
+              ))}
             </ul>
           </div>
         </div>

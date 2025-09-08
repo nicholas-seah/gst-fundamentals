@@ -10,6 +10,7 @@ import {
   Legend,
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
+import observationsData from '../../Key Insights/bullet-points.json';
 
 ChartJS.register(
   CategoryScale,
@@ -567,22 +568,12 @@ const BESSCapacityChart: React.FC = () => {
             <div className="bg-gray-100 rounded-lg p-4">
               <h4 className="text-sm font-semibold text-gs-dark mb-3">Key Insights</h4>
               <ul className="space-y-3 text-xs text-gray-600">
-                <li className="flex items-start gap-2">
-                  <div className="w-1 h-1 bg-gray-600 rounded-full mt-2 flex-shrink-0"></div>
-                  <span>BESS capacity shows steady growth from 13.0 GW in 2020 to 26.5 GW in 2024</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <div className="w-1 h-1 bg-gray-600 rounded-full mt-2 flex-shrink-0"></div>
-                  <span>Artificial data reflects mature market with established utility-scale deployment patterns</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <div className="w-1 h-1 bg-gray-600 rounded-full mt-2 flex-shrink-0"></div>
-                  <span>Conservative scenario projects 50 GW by 2030, representing 89% growth from 2024</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <div className="w-1 h-1 bg-gray-600 rounded-full mt-2 flex-shrink-0"></div>
-                  <span>Aggressive scenario reaches 120 GW by 2030, representing 353% growth potential</span>
-                </li>
+                {observationsData.bessCapacity.map((observation, index) => (
+                  <li key={index} className="flex items-start gap-2">
+                    <div className="w-1 h-1 bg-gray-600 rounded-full mt-2 flex-shrink-0"></div>
+                    <span>{observation}</span>
+                  </li>
+                ))}
               </ul>
             </div>
           </div>

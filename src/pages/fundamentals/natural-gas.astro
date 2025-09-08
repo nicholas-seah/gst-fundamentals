@@ -1,27 +1,12 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import FuturesTablesContainer from '../../components/common/FuturesTablesContainer';
 ---
 
 <Layout title="Natural Gas">
-  <h1 class="text-3xl font-bold text-gs-dark mb-4">Natural Gas</h1>
-  <p class="text-gray-600 mb-8">Natural gas market data, pricing, and analytics dashboard.</p>
-  
-  <div class="space-y-6">
-    <div class="border border-gray-200 rounded-lg p-6">
-      <h2 class="text-xl font-semibold text-gs-dark mb-4">Market Overview</h2>
-      <p class="text-gray-600">Natural gas market data and trends will be displayed here.</p>
+  <main class="flex-1 pt-0 px-8 pb-8">
+    <div class="max-w-7xl mx-auto">
+      <FuturesTablesContainer client:only="react" />
     </div>
-    
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div class="border border-gray-200 rounded-lg p-6">
-        <h3 class="text-lg font-semibold text-gs-dark mb-3">Pricing</h3>
-        <p class="text-gray-600">Price charts and analysis</p>
-      </div>
-      
-      <div class="border border-gray-200 rounded-lg p-6">
-        <h3 class="text-lg font-semibold text-gs-dark mb-3">Supply & Demand</h3>
-        <p class="text-gray-600">Supply and demand metrics</p>
-      </div>
-    </div>
-  </div>
+  </main>
 </Layout> 

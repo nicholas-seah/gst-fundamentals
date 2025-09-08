@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import YoYDemandChart from './YoYDemandChart';
+import observationsData from '../../Key Insights/bullet-points.json';
 
 interface ERCOTZonalData {
   success: boolean;
@@ -108,22 +109,12 @@ const ERCOTZonalSection: React.FC = () => {
           <div className="bg-gray-100 rounded-lg p-4 h-96">
             <h4 className="text-sm font-semibold text-gs-dark mb-3">Key Observations</h4>
             <ul className="space-y-3 text-xs text-gray-600">
-              <li className="flex items-start gap-2">
-                <div className="w-1 h-1 bg-gray-600 rounded-full mt-2 flex-shrink-0"></div>
-                <span>West region shows highest volatility, with peaks exceeding 20% growth in 2022-2024</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <div className="w-1 h-1 bg-gray-600 rounded-full mt-2 flex-shrink-0"></div>
-                <span>Houston region experienced significant decline in 2022 mid-year, reaching -8% growth</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <div className="w-1 h-1 bg-gray-600 rounded-full mt-2 flex-shrink-0"></div>
-                <span>North region demonstrates most stable growth pattern, typically ranging 0-8%</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <div className="w-1 h-1 bg-gray-600 rounded-full mt-2 flex-shrink-0"></div>
-                <span>South region shows consistent positive growth with occasional spikes above 10%</span>
-              </li>
+              {observationsData.zonalDemand.map((observation, index) => (
+                <li key={index} className="flex items-start gap-2">
+                  <div className="w-1 h-1 bg-gray-600 rounded-full mt-2 flex-shrink-0"></div>
+                  <span>{observation}</span>
+                </li>
+              ))}
             </ul>
           </div>
         </div>
