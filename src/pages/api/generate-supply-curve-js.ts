@@ -68,9 +68,45 @@ export const POST: APIRoute = async ({ request }) => {
 
 async function loadAndProcessCsv(filePath: string, dateFilter?: string, hourFilter?: string): Promise<ExpandedDataPoint[]> {
   try {
-    // Read CSV file
-    const csvFilePath = path.join(process.cwd(), filePath);
-    const csvContent = await fs.readFile(csvFilePath, 'utf-8');
+    // Read CSV file - handle both local and Netlify environments
+    let csvContent: string;
+    
+    try {
+      // Try reading from the standard path first (local development)
+      const csvFilePath = path.join(process.cwd(), filePath);
+      csvContent = await fs.readFile(csvFilePath, 'utf-8');
+    } catch (localError) {
+      // If that fails, try alternative paths for Netlify
+      const alternativePaths = [
+        // Netlify function paths
+        path.join('/var/task/.netlify/functions-internal', filePath),
+        path.join('/var/task/.netlify/build', filePath),
+        path.join('/var/task', filePath.replace('public/', '')), // Remove public/ prefix
+        path.join(process.cwd(), filePath.replace('public/', '')), // Try without public/
+        path.join(process.cwd(), 'dist', filePath),
+        path.join('/var/task/dist', filePath),
+        // Try accessing from root
+        path.resolve(filePath),
+        path.resolve(filePath.replace('public/', '')),
+        filePath // Try relative path as last resort
+      ];
+      
+      let fileFound = false;
+      for (const altPath of alternativePaths) {
+        try {
+          csvContent = await fs.readFile(altPath, 'utf-8');
+          console.log(`Successfully loaded CSV from: ${altPath}`);
+          fileFound = true;
+          break;
+        } catch (altError) {
+          console.log(`Failed to load from ${altPath}: ${altError.message}`);
+        }
+      }
+      
+      if (!fileFound) {
+        throw new Error(`CSV file not found. Tried paths: ${alternativePaths.join(', ')}. Original error: ${localError.message}`);
+      }
+    }
     
     // Parse CSV
     const parseResult = Papa.parse(csvContent, {
