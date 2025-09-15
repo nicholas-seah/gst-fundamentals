@@ -154,7 +154,7 @@ const ERCOTDemandChart: React.FC = () => {
             return `Month: ${months[context[0].dataIndex]}`;
           },
           label: function(context: any) {
-            return `${context.dataset.label}: ${context.parsed.y.toLocaleString()} MW Avg.`;
+            return `${context.dataset.label}: ${context.parsed.y.toLocaleString()} MW Avg`;
           },
           afterBody: function() {
             return 'Weather-normalized';
@@ -190,7 +190,7 @@ const ERCOTDemandChart: React.FC = () => {
         display: true,
         title: {
           display: true,
-          text: 'Demand (MW Avg.)',
+          text: 'Demand (MW Avg)',
           font: {
             family: 'Inter, sans-serif',
             size: 14,
@@ -331,9 +331,9 @@ const ERCOTDemandChart: React.FC = () => {
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
                 <th className="text-left p-3 font-medium text-gray-600">Year</th>
-                <th className="text-center p-3 font-medium text-gray-600">Peak (MW Avg.)</th>
-                <th className="text-center p-3 font-medium text-gray-600">Low (MW Avg.)</th>
-                <th className="text-center p-3 font-medium text-gray-600">Average (MW Avg.)</th>
+                <th className="text-center p-3 font-medium text-gray-600">Peak (MW Avg)</th>
+                <th className="text-center p-3 font-medium text-gray-600">Low (MW Avg)</th>
+                <th className="text-center p-3 font-medium text-gray-600">Average (MW Avg)</th>
                 <th className="text-center p-3 font-medium text-gray-600">Growth vs prev year</th>
               </tr>
             </thead>

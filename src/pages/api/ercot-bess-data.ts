@@ -5,25 +5,37 @@ export const GET: APIRoute = async ({ request }) => {
   try {
     console.log('Fetching ERCOT BESS capacity data...');
     
-    // Use raw SQL to query the ERCOT_BESS_Capacity_Annual table
+    // Use raw SQL to query the ERCOT_BESS_Capacity_Annual table for monthly data
     const bessData = await ercotDb.$queryRaw`
       SELECT 
-        "Year",
+        "Date",
         "Capacity"
       FROM "ERCOT"."ERCOT_BESS_Capacity_Annual"
-      WHERE "Year" >= 2020 AND "Year" <= 2030
-      ORDER BY "Year" ASC
+      WHERE "Date" >= '2023-01-01'::date
+      ORDER BY "Date" ASC
     ` as Array<{
-      Year: number;
+      Date: Date;
       Capacity: number | null;
     }>;
 
-    console.log(`Retrieved ${bessData.length} BESS historical data records`);
+    console.log(`Retrieved ${bessData.length} BESS monthly data records`);
     
-    // Log a sample of the data for debugging
-    if (bessData.length > 0) {
-      console.log('Sample BESS historical data:', bessData.slice(0, 3));
-    }
+    // Convert monthly data to format component expects (monthly labels as "years")
+    const monthlyLabels: string[] = [];
+    const monthlyCapacities: (number | null)[] = [];
+    
+    bessData.forEach(row => {
+      const date = new Date(row.Date);
+      const monthLabel = date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        year: 'numeric' 
+      }); // e.g., "Jan 2023"
+      
+      monthlyLabels.push(monthLabel);
+      monthlyCapacities.push(row.Capacity);
+    });
+    
+    console.log(`Processed ${monthlyLabels.length} months from ${monthlyLabels[0]} to ${monthlyLabels[monthlyLabels.length - 1]}`);
     
     // Define artificial data for missing years and projections
     const artificialData = {
@@ -55,69 +67,35 @@ export const GET: APIRoute = async ({ request }) => {
       }
     };
     
-    // Define all years we want to show (2020-2030)
-    const allYears = [2020, 2021, 2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030];
-    
-    // Initialize scenario arrays
+    // Use monthly data directly (no projections)
     const scenarios = {
-      historical: new Array(allYears.length).fill(null),
-      conservative: new Array(allYears.length).fill(null),
-      moderate: new Array(allYears.length).fill(null),
-      aggressive: new Array(allYears.length).fill(null)
+      historical: monthlyCapacities,
+      conservative: new Array(monthlyLabels.length).fill(null), // No projections for monthly data
+      moderate: new Array(monthlyLabels.length).fill(null),
+      aggressive: new Array(monthlyLabels.length).fill(null)
     };
-    
-    // Create a map of database data for quick lookup
-    const dbDataMap = new Map();
-    bessData.forEach(row => {
-      dbDataMap.set(row.Year, row.Capacity);
-    });
-    
-    // Fill historical data (combine database + artificial data)
-    allYears.forEach((year, index) => {
-      if (year <= 2024) { // Historical years
-        if (dbDataMap.has(year)) {
-          // Use database data if available (rounded to whole numbers)
-          scenarios.historical[index] = Math.round(dbDataMap.get(year) || 0);
-        } else {
-          // Use artificial data for missing historical years
-          scenarios.historical[index] = artificialData[year as keyof typeof artificialData] || null;
-        }
-      }
-      // For 2025-2030, historical line will be null (only projections)
-    });
-    
-    // Fill projection data for 2025-2030
-    allYears.forEach((year, index) => {
-      if (year >= 2025) {
-        scenarios.conservative[index] = (mockProjections.conservative as any)[year] || null;
-        scenarios.moderate[index] = (mockProjections.moderate as any)[year] || null;
-        scenarios.aggressive[index] = (mockProjections.aggressive as any)[year] || null;
-      }
-    });
     
     const response = {
       success: true,
       message: 'BESS capacity data retrieved successfully',
       data: {
-        years: allYears,
+        years: monthlyLabels, // Monthly labels like "Jan 2023", "Feb 2023"
         scenarios: scenarios,
         rawData: bessData
       },
       metadata: {
         totalRecords: bessData.length,
-        databaseYears: bessData.map(row => row.Year).sort(),
-        artificialYears: allYears.filter(year => year <= 2024 && !dbDataMap.has(year)),
-        yearRange: `${allYears[0]}-${allYears[allYears.length - 1]}`,
+        databaseYears: monthlyLabels, // All data from database
+        yearRange: `${monthlyLabels[0]}-${monthlyLabels[monthlyLabels.length - 1]}`,
         lastUpdated: new Date().toISOString(),
         dataSource: 'Historical: Database + Artificial, Projections: Sample'
       }
     };
     
     console.log('BESS data transformation complete:', {
-      totalYears: allYears.length,
+      totalMonths: monthlyLabels.length,
       databaseRecords: bessData.length,
-      artificialHistoricalYears: response.metadata.artificialYears.length,
-      yearRange: response.metadata.yearRange
+      dateRange: response.metadata.yearRange
     });
     
     return new Response(JSON.stringify(response), {

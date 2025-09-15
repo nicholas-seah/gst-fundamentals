@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { ercotDb } from '../../lib/database';
+import { ercotDb, rtLoadDb } from '../../lib/database';
 
 interface OfferCurvePoint {
   mw: number;
@@ -26,21 +26,45 @@ interface ChartData {
 export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
-    const { date, hour, minute, scenario } = body;
+    const { date, hour, minute, resourceStatuses } = body;
     
-    console.log(`Generating JS supply curve for ${date} ${hour}:${minute} (${scenario})`);
+    console.log(`Generating JS supply curve for ${date} ${hour}:${minute} (Resource Statuses: ${resourceStatuses?.join(', ') || 'All'})`);
     
     // Load and process database data
-    const offerCurveData = await loadAndProcessDatabaseData(date, hour);
+    const offerCurveData = await loadAndProcessDatabaseData(date, hour, minute, resourceStatuses);
+    
+    // Fetch actual demand from yes_fundamentals table
+    const actualDemand = await fetchActualDemand(date, hour, minute);
     
     // Generate the chart configuration
-    const chartConfig = generatePlotlyChart(offerCurveData, date, hour, minute, scenario);
+    const chartConfig = generatePlotlyChart(offerCurveData, date, hour, minute, 'Current Grid', actualDemand);
+    
+    // Calculate some key metrics for debugging
+    const totalCapacity = offerCurveData.reduce((sum, d) => sum + d.mw, 0);
+    const priceRange = {
+      min: Math.min(...offerCurveData.map(d => d.price)),
+      max: Math.max(...offerCurveData.map(d => d.price))
+    };
+    
+    console.log('='.repeat(50));
+    console.log('🔍 SUPPLY CURVE DEBUG SUMMARY');
+    console.log(`📊 Total Capacity: ${totalCapacity.toFixed(1)} MW`);
+    console.log(`📈 Price Range: $${priceRange.min.toFixed(2)} to $${priceRange.max.toFixed(2)}`);
+    console.log(`🎯 Actual Demand: ${actualDemand || 'Not found'} MW`);
+    console.log(`📋 Data Points: ${offerCurveData.length} segments`);
+    console.log('='.repeat(50));
     
     return new Response(JSON.stringify({
       success: true,
       message: 'Chart generated successfully with JavaScript',
       chartConfig: chartConfig,
-      dataPoints: offerCurveData.length
+      dataPoints: offerCurveData.length,
+      actualDemand: actualDemand,
+      debugInfo: {
+        totalCapacity: totalCapacity,
+        priceRange: priceRange,
+        timestamp: new Date().toISOString()
+      }
     }), {
       status: 200,
       headers: {
@@ -64,27 +88,213 @@ export const POST: APIRoute = async ({ request }) => {
   }
 };
 
-async function loadAndProcessDatabaseData(dateFilter?: string, hourFilter?: string): Promise<ExpandedDataPoint[]> {
+async function fetchActualDemand(date: string, hour: string, minute: string): Promise<number | null> {
   try {
-    console.log('Loading offer curve data from database...');
+    // Parse hour from format "01 (1 AM)" to get "01"
+    const hourNumber = hour.split(' ')[0];
     
-    // Query the database for offer curve data
-    const rawData = await ercotDb.$queryRaw<Array<{
-      resource_name: string;
-      resource_type: string;
-      sced_tpo_offer_curve: string;
-      interval_start_utc?: Date;
-      sced_timestamp_utc?: Date;
+    // Create timestamp string for Texas local time
+    const targetTimestamp = `${date} ${hourNumber}:${minute}:00`;
+    console.log(`Fetching actual demand for: ${targetTimestamp}`);
+    
+    // Query yes_fundamentals table for CAISO RTLOAD data
+    const demandData = await rtLoadDb.$queryRaw<Array<{
+      value: number;
     }>>`
-      SELECT "resource_name", "resource_type", "sced_tpo_offer_curve", "interval_start_utc", "sced_timestamp_utc"
-      FROM "ERCOT"."ERCOT_Generation_Offer_Curve"
-      ORDER BY "resource_name" ASC
+      SELECT "value"
+      FROM public.yes_fundamentals
+      WHERE "local_datetime_ib" = ${targetTimestamp}::timestamp
+        AND "entity" = 'ERCOT'
+        AND "attribute" = 'RTLOAD'
+      LIMIT 1
     `;
+    
+    if (demandData.length > 0) {
+      const demand = demandData[0].value;
+      console.log(`Found actual demand: ${demand} MW`);
+      return demand;
+    } else {
+      console.log('No demand data found for specified time');
+      return null;
+    }
+    
+  } catch (error) {
+    console.error('Error fetching actual demand:', error);
+    return null;
+  }
+}
+
+async function loadAndProcessDatabaseData(dateFilter?: string, hourFilter?: string, minuteFilter?: string, resourceStatusFilters?: string[]): Promise<ExpandedDataPoint[]> {
+  try {
+    console.log(`Loading offer curve data from database for ${dateFilter} ${hourFilter}:${minuteFilter}...`);
+    
+    // Convert user selections to Texas local time timestamp
+    let targetTimestamp: string | null = null;
+    
+    if (dateFilter && hourFilter && minuteFilter) {
+      // Parse hour from format "02 (2 AM)" to get "02"
+      const hourNumber = hourFilter.split(' ')[0];
+      
+      // Create timestamp string in Texas local time
+      // Format: YYYY-MM-DD HH:MM:SS
+      targetTimestamp = `${dateFilter} ${hourNumber}:${minuteFilter}:00`;
+      console.log(`Target timestamp (Texas local): ${targetTimestamp}`);
+    }
+    
+    // Query the database for offer curve data with optional filtering
+    let rawData;
+    
+    if (targetTimestamp) {
+      // Handle multiple resource status filtering
+      const shouldFilter = resourceStatusFilters && 
+                          resourceStatusFilters.length > 0 && 
+                          !resourceStatusFilters.includes('All');
+      
+      if (shouldFilter && resourceStatusFilters.length === 1) {
+        // Simple single status filtering
+        const singleStatus = resourceStatusFilters[0];
+        console.log(`Filtering by single resource status: ${singleStatus}`);
+        
+        const query = `
+          SELECT "resource_name", "resource_type", "sced_tpo_offer_curve", "interval_start_local", "telemetered_resource_status", "telemetered_net_output"
+          FROM "ERCOT"."ERCOT_Generation_Offer_Curve"
+          WHERE "interval_start_local" = '${targetTimestamp}'::timestamp
+            AND "telemetered_resource_status" = '${singleStatus}'
+            AND "telemetered_net_output" != 0
+          ORDER BY "resource_name" ASC
+        `;
+        console.log('Executing SQL query:', query);
+        
+        rawData = await ercotDb.$queryRaw<Array<{
+          resource_name: string;
+          resource_type: string;
+          sced_tpo_offer_curve: string;
+          interval_start_local?: Date;
+          telemetered_resource_status?: string;
+          telemetered_net_output?: number;
+        }>>`
+          SELECT "resource_name", "resource_type", "sced_tpo_offer_curve", "interval_start_local", "telemetered_resource_status", "telemetered_net_output"
+          FROM "ERCOT"."ERCOT_Generation_Offer_Curve"
+          WHERE "interval_start_local" = ${targetTimestamp}::timestamp
+            AND "telemetered_resource_status" = ${singleStatus}
+            AND "telemetered_net_output" != 0
+          ORDER BY "resource_name" ASC
+        `;
+      } else if (shouldFilter && resourceStatusFilters.length > 1) {
+        // Handle multiple status filtering with separate queries and combine results
+        console.log(`Filtering by multiple resource statuses: ${resourceStatusFilters.join(', ')}`);
+        
+        const allResults: Array<{
+          resource_name: string;
+          resource_type: string;
+          sced_tpo_offer_curve: string;
+          interval_start_local?: Date;
+          telemetered_resource_status?: string;
+          telemetered_net_output?: number;
+        }> = [];
+        
+        // Query each status separately and combine results
+        for (const status of resourceStatusFilters) {
+          const statusData = await ercotDb.$queryRaw<Array<{
+            resource_name: string;
+            resource_type: string;
+            sced_tpo_offer_curve: string;
+            interval_start_local?: Date;
+            telemetered_resource_status?: string;
+            telemetered_net_output?: number;
+          }>>`
+            SELECT "resource_name", "resource_type", "sced_tpo_offer_curve", "interval_start_local", "telemetered_resource_status", "telemetered_net_output"
+            FROM "ERCOT"."ERCOT_Generation_Offer_Curve"
+            WHERE "interval_start_local" = ${targetTimestamp}::timestamp
+              AND "telemetered_resource_status" = ${status}
+              AND "telemetered_net_output" != 0
+            ORDER BY "resource_name" ASC
+          `;
+          allResults.push(...statusData);
+        }
+        
+        rawData = allResults;
+      } else {
+        // No filtering - show all statuses (but exclude zero output)
+        rawData = await ercotDb.$queryRaw<Array<{
+          resource_name: string;
+          resource_type: string;
+          sced_tpo_offer_curve: string;
+          interval_start_local?: Date;
+          telemetered_resource_status?: string;
+          telemetered_net_output?: number;
+        }>>`
+          SELECT "resource_name", "resource_type", "sced_tpo_offer_curve", "interval_start_local", "telemetered_resource_status", "telemetered_net_output"
+          FROM "ERCOT"."ERCOT_Generation_Offer_Curve"
+          WHERE "interval_start_local" = ${targetTimestamp}::timestamp
+            AND "telemetered_net_output" != 0
+          ORDER BY "resource_name" ASC
+        `;
+      }
+    } else {
+      // If no date/time specified, get the latest interval with optional resource status filtering
+      const shouldFilter = resourceStatusFilters && 
+                          resourceStatusFilters.length > 0 && 
+                          !resourceStatusFilters.includes('All');
+      
+      if (shouldFilter) {
+        console.log(`Filtering latest interval by resource statuses: ${resourceStatusFilters.join(', ')}`);
+        
+        rawData = await ercotDb.$queryRaw<Array<{
+          resource_name: string;
+          resource_type: string;
+          sced_tpo_offer_curve: string;
+          interval_start_local?: Date;
+          telemetered_resource_status?: string;
+          telemetered_net_output?: number;
+        }>>`
+          SELECT "resource_name", "resource_type", "sced_tpo_offer_curve", "interval_start_local", "telemetered_resource_status", "telemetered_net_output"
+          FROM "ERCOT"."ERCOT_Generation_Offer_Curve"
+          WHERE "interval_start_local" = (
+            SELECT MAX("interval_start_local") 
+            FROM "ERCOT"."ERCOT_Generation_Offer_Curve"
+          )
+            AND "telemetered_resource_status" = ${resourceStatusFilters[0]}
+            AND "telemetered_net_output" != 0
+          ORDER BY "resource_name" ASC
+        `;
+      } else {
+        rawData = await ercotDb.$queryRaw<Array<{
+          resource_name: string;
+          resource_type: string;
+          sced_tpo_offer_curve: string;
+          interval_start_local?: Date;
+          telemetered_resource_status?: string;
+          telemetered_net_output?: number;
+        }>>`
+          SELECT "resource_name", "resource_type", "sced_tpo_offer_curve", "interval_start_local", "telemetered_resource_status", "telemetered_net_output"
+          FROM "ERCOT"."ERCOT_Generation_Offer_Curve"
+          WHERE "interval_start_local" = (
+            SELECT MAX("interval_start_local") 
+            FROM "ERCOT"."ERCOT_Generation_Offer_Curve"
+          )
+            AND "telemetered_net_output" != 0
+          ORDER BY "resource_name" ASC
+        `;
+      }
+    }
     
     console.log(`Loaded ${rawData.length} rows from database`);
     
+    // Debug: Show breakdown of resource statuses in the data
+    const statusBreakdown: { [key: string]: number } = {};
+    rawData.forEach(row => {
+      const status = row.telemetered_resource_status || 'NULL';
+      statusBreakdown[status] = (statusBreakdown[status] || 0) + 1;
+    });
+    console.log('Resource status breakdown:', statusBreakdown);
+    
     // Process data (equivalent to Python logic)
     const expandedData: ExpandedDataPoint[] = [];
+    let totalProcessedMW = 0;
+    let priceRange = { min: Infinity, max: -Infinity };
+    
+    console.log(`Processing ${rawData.length} units...`);
     
     for (let i = 0; i < rawData.length; i++) {
       const row = rawData[i];
@@ -109,7 +319,13 @@ async function loadAndProcessDatabaseData(dateFilter?: string, hourFilter?: stri
         continue;
       }
       
+      // Debug first few units
+      if (i < 3) {
+        console.log(`Unit ${row.resource_name}: ${curve.length} curve points, Status: ${row.telemetered_resource_status}, Output: ${row.telemetered_net_output}`);
+      }
+      
       // Process each point in the curve
+      let unitTotalMW = 0;
       for (const point of curve) {
         if (Array.isArray(point) && point.length >= 2) {
           const [mw, price] = point;
@@ -123,11 +339,25 @@ async function loadAndProcessDatabaseData(dateFilter?: string, hourFilter?: stri
               price: price,
               cumulative_mw: 0 // Will be calculated later
             });
+            
+            unitTotalMW += mwSegment;
+            totalProcessedMW += mwSegment;
+            priceRange.min = Math.min(priceRange.min, price);
+            priceRange.max = Math.max(priceRange.max, price);
           }
           prevMw = mw;
         }
       }
+      
+      // Debug first few units
+      if (i < 3) {
+        console.log(`Unit ${row.resource_name}: Processed ${unitTotalMW.toFixed(1)} MW`);
+      }
     }
+    
+    console.log(`Total processed capacity: ${totalProcessedMW.toFixed(1)} MW`);
+    console.log(`Price range in offer curves: $${priceRange.min.toFixed(2)} to $${priceRange.max.toFixed(2)}`);
+    console.log(`Number of price segments: ${expandedData.length}`);
     
     // Sort by price (equivalent to Python sort)
     expandedData.sort((a, b) => a.price - b.price);
@@ -152,9 +382,9 @@ async function loadAndProcessDatabaseData(dateFilter?: string, hourFilter?: stri
 function generateYTicks(yMin: number, yMax: number): number[] {
   const ticks: number[] = [];
   
-  // Add negative values if needed
+  // Add negative values if needed (exactly like Python version)
   if (yMin < 0) {
-    const negTicks = [-250, -100, -50, -25, -10, -1];
+    const negTicks = [-5000, -2500, -1000, -500, -250, -100, -50, -25, -10, -1];
     for (const tick of negTicks) {
       if (tick >= yMin && tick <= yMax) {
         ticks.push(tick);
@@ -187,15 +417,19 @@ function formatPriceLabel(price: number): string {
   }
 }
 
-function generatePlotlyChart(data: ExpandedDataPoint[], date: string, hour: string, minute: string, scenario: string) {
+function generatePlotlyChart(data: ExpandedDataPoint[], date: string, hour: string, minute: string, scenario: string, actualDemand?: number | null) {
   const traces: ChartData[] = [];
   
-  // Calculate total capacity and demand (75% like Python)
+  // Use actual demand from database if available, otherwise calculate 75% of capacity
   const totalCapacity = data.reduce((sum, d) => sum + d.mw, 0);
-  const demand = Math.floor(totalCapacity * 0.75);
+  const demand = actualDemand || Math.floor(totalCapacity * 0.75);
   
   console.log(`Total capacity: ${totalCapacity.toLocaleString()} MW`);
-  console.log(`Setting demand to: ${demand.toLocaleString()} MW (75% load factor)`);
+  if (actualDemand) {
+    console.log(`Using actual demand: ${demand.toLocaleString()} MW (from database)`);
+  } else {
+    console.log(`Using calculated demand: ${demand.toLocaleString()} MW (75% load factor)`);
+  }
   
   // Enhanced fuel type colors (matching Python exactly)
   const resourceColors: { [key: string]: string } = {
@@ -256,8 +490,26 @@ function generatePlotlyChart(data: ExpandedDataPoint[], date: string, hour: stri
   // Create individual bars for each generator (like Python stacked bars)
   for (const point of dataWithColors) {
     const width = point.mw;
-    const height = point.price;
+    let height = point.price;
     const color = point.color;
+    
+    // Apply minimum height for visibility and special handling for zero prices
+    let barTop, barBottom;
+    
+    if (height === 0) {
+      // For zero prices, split the bar half above and half below zero line
+      barTop = 0.125;
+      barBottom = -0.125;
+    } else if (Math.abs(height) < 0.25) {
+      // For very small non-zero prices, apply minimum height
+      height = height >= 0 ? 0.25 : -0.25;
+      barTop = height;
+      barBottom = 0;
+    } else {
+      // For normal prices, use actual height
+      barTop = height;
+      barBottom = 0;
+    }
     
     // Ensure minimum bar width for visibility
     const displayWidth = Math.max(width, totalCapacity * 0.0001);
@@ -282,10 +534,10 @@ function generatePlotlyChart(data: ExpandedDataPoint[], date: string, hour: stri
       legendAdded.add(point.fuel_type);
     }
     
-    // Create individual bar as filled rectangle (matching Python)
+    // Create individual bar as filled rectangle (with special zero-price handling)
     traces.push({
       x: [displayLeft, displayLeft, displayRight, displayRight, displayLeft],
-      y: [0, height, height, 0, 0],
+      y: [barBottom, barTop, barTop, barBottom, barBottom],
       name: point.fuel_type,
       type: 'scatter',
       fill: 'toself',
@@ -294,73 +546,42 @@ function generatePlotlyChart(data: ExpandedDataPoint[], date: string, hour: stri
       mode: 'lines',
       showlegend: showLegend,
       opacity: 0.8,
-      text: `<b>${point.unit_code}</b><br>Resource Type: ${point.fuel_type}<br>Capacity: ${point.mw.toFixed(1)} MW<br>Price: $${height.toFixed(2)}/MWh<br>Load: ${barLeft.toFixed(0)} - ${barRight.toFixed(0)} MW`,
+      text: `<b>${point.unit_code}</b><br>Resource Type: ${point.fuel_type}<br>Capacity: ${point.mw.toFixed(1)} MW<br>Price: $${point.price.toFixed(2)}/MWh<br>Load: ${barLeft.toFixed(0)} - ${barRight.toFixed(0)} MW`,
       hoverinfo: 'text'
     });
     
     prevMw += width;
   }
   
-  // Add horizontal line at $0 (red dashed line)
-  const maxCapacity = Math.max(...dataWithColors.map(d => d.cumulative_mw));
-  traces.push({
-    x: [0, maxCapacity],
-    y: [0, 0],
-    name: '$0 Price Line',
-    type: 'scatter',
-    mode: 'lines',
-    line: { color: 'red', width: 2, dash: 'dash' },
-    showlegend: false,
-    hoverinfo: 'skip'
-  });
+  // Removed horizontal $0 price line for cleaner visualization
   
   // Add vertical demand line (red dashed line) with better Y-axis scaling
   const prices = dataWithColors.map(d => d.price);
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
   
-  // Use Python-like Y-axis scaling (much more compressed)
-  let yMin, yMax;
+  // Simple fixed Y-axis range for optimal viewing of renewable generation
+  const yMin = -50;
+  const yMax = 100;
   
-  // Set Y-min to handle negative prices like Python
-  if (minPrice < 0) {
-    yMin = Math.max(-250, minPrice * 1.2); // Cap at -250 like Python
-  } else {
-    yMin = -25; // Show some negative space for better visualization
+  console.log(`Price range in data: ${minPrice.toFixed(2)} to ${maxPrice.toFixed(2)}`);
+  console.log(`Fixed Y-axis range: ${yMin} to ${yMax} (optimized for renewable generation view)`);
+  
+  // Add vertical demand line using actual demand from database
+  if (demand > 0) {
+    const maxCapacity = Math.max(...dataWithColors.map(d => d.cumulative_mw));
+    
+    traces.push({
+      x: [demand, demand],
+      y: [yMin, yMax],
+      name: 'Demand Level',
+      type: 'scatter',
+      mode: 'lines',
+      line: { color: 'red', width: 2, dash: 'dash' },
+      showlegend: false,
+      hovertemplate: `Demand: ${demand.toLocaleString()} MW<extra></extra>`
+    });
   }
-  
-  // Much more aggressive Y-max capping to match Python scaling
-  const pricePercentiles = [...prices].sort((a, b) => a - b);
-  const p90 = pricePercentiles[Math.floor(pricePercentiles.length * 0.90)];
-  const p95 = pricePercentiles[Math.floor(pricePercentiles.length * 0.95)];
-  
-  // Very compressed Y-axis like Python - focus on where most generation is
-  if (p90 <= 50) {
-    yMax = 100; // Most generation at very low prices
-  } else if (p90 <= 100) {
-    yMax = 250; // Low-price market
-  } else if (p90 <= 250) {
-    yMax = 500; // Medium-price market
-  } else if (p90 <= 500) {
-    yMax = 1000; // Higher-price market
-  } else {
-    yMax = Math.min(p95 * 1.2, 1500); // Cap extreme cases
-  }
-  
-  console.log(`Price range: ${minPrice.toFixed(2)} to ${maxPrice.toFixed(2)}`);
-  console.log(`90th percentile: ${p90.toFixed(2)}, 95th percentile: ${p95.toFixed(2)}`);
-  console.log(`Y-axis range: ${yMin.toFixed(2)} to ${yMax.toFixed(2)}`);
-  
-  traces.push({
-    x: [demand, demand],
-    y: [yMin, yMax],
-    name: 'Demand Level',
-    type: 'scatter',
-    mode: 'lines',
-    line: { color: 'red', width: 2, dash: 'dash' },
-    showlegend: false,
-    hovertemplate: `Demand: ${demand.toLocaleString()} MW<extra></extra>`
-  });
   
   // Find clearing price at demand level
   let clearingPrice = 0;
@@ -371,12 +592,8 @@ function generatePlotlyChart(data: ExpandedDataPoint[], date: string, hour: stri
     }
   }
   
-  // Create layout (matching Python styling)
+  // Create layout (clean, no title)
   const layout = {
-    title: {
-      text: `Supply Curve (${date} at ${hour.split(' ')[0]}:${minute})`,
-      font: { size: 16 }
-    },
     xaxis: {
       title: 'Load (MW)',
       showgrid: true,
@@ -387,46 +604,20 @@ function generatePlotlyChart(data: ExpandedDataPoint[], date: string, hour: stri
       title: 'Offer Price ($/MWh)',
       showgrid: true,
       gridcolor: 'lightgray',
-      tickformat: '$.0f',
-      range: [yMin, yMax],
-      // Custom tick values for better readability (like Python version)
+      type: 'linear', // Same as Python - linear with custom ticks  
+      range: [yMin, yMax], // Use exact Python range calculation
+      // Custom tick values for symlog-like behavior (exactly like Python version)
       tickmode: 'array',
       tickvals: generateYTicks(yMin, yMax),
       ticktext: generateYTicks(yMin, yMax).map(formatPriceLabel)
     },
-    annotations: [
-      {
-        x: demand,
-        y: yMax * 0.9,
-        text: `Demand: ${demand.toLocaleString()} MW`,
-        showarrow: true,
-        arrowhead: 2,
-        arrowsize: 1,
-        arrowwidth: 2,
-        arrowcolor: 'red',
-        font: { color: 'red', size: 12 },
-        bgcolor: 'white',
-        bordercolor: 'red',
-        borderwidth: 1
-      },
-      {
-        x: maxCapacity * 0.1,
-        y: yMax * 0.9,
-        text: `Clearing Price: $${clearingPrice.toFixed(2)}/MWh`,
-        showarrow: false,
-        font: { color: 'red', size: 12 },
-        bgcolor: 'white',
-        bordercolor: 'red',
-        borderwidth: 1
-      }
-    ],
     hovermode: 'closest', // Best for individual bar hover
     showlegend: true,
     legend: {
       orientation: 'h', // Horizontal orientation
       x: 0.5, // Center horizontally
       xanchor: 'center',
-      y: -0.2, // Position below the chart
+      y: -0.35, // Position much lower to avoid overlap with x-axis title
       yanchor: 'top',
       bgcolor: 'rgba(255,255,255,0.8)', // Semi-transparent white background
       bordercolor: 'rgba(0,0,0,0.1)', // Light border
@@ -434,7 +625,7 @@ function generatePlotlyChart(data: ExpandedDataPoint[], date: string, hour: stri
     },
     plot_bgcolor: 'white',
     paper_bgcolor: 'white',
-    margin: { l: 60, r: 30, t: 80, b: 120 } // Increased top margin for horizontal toolbar
+    margin: { l: 60, r: 30, t: 80, b: 150 } // Increased bottom margin for lower legend position
   };
   
   return {

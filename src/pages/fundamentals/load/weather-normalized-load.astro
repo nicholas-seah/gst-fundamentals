@@ -7,15 +7,109 @@ import ERCOTZonalSection from '../../../components/common/ERCOTZonalSection';
 <Layout title="Structural Demand">
   <main class="flex-1 p-0">
     <div class="max-w-7xl mx-auto px-4 space-y-2">
-      <!-- ERCOT Weather Normalized Demand Section -->
+      <!-- Structural Demand Introduction (Expandable) -->
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-4">
+        <div class="flex items-start gap-4">
+          <div class="flex-shrink-0">
+            <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+              <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+            </div>
+          </div>
+          <div class="flex-1">
+            <button 
+              id="structural-demand-toggle"
+              class="flex items-center justify-between w-full text-left hover:bg-blue-100 rounded p-2 -m-2 transition-colors"
+            >
+              <h3 class="text-lg font-semibold text-gray-900">What is Structural Demand?</h3>
+              <svg id="structural-demand-arrow" class="w-5 h-5 text-gray-600 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </button>
+            
+            <div id="structural-demand-content" class="hidden mt-3">
+              <p class="text-sm text-gray-800 mb-4">
+                Structural Demand is the weather-normalized demand that removes the effects of extreme weather events and temperature variations to reveal underlying consumption patterns and trends
+              </p>
+              
+              <div class="space-y-4 text-sm">
+                <div>
+                  <h4 class="text-base font-bold text-gray-900 mb-2">How it is Calculated:</h4>
+                  <ol class="space-y-2 text-sm text-gray-700 list-decimal list-inside">
+                    <li>
+                      <strong>Data Collection:</strong> Collect hourly day-ahead (DA) demand and temperature values
+                    </li>
+                    <li>
+                      <strong>Temperature Binning:</strong> Create temperature bins and calculate the frequency and average demand for each bin
+                    </li>
+                    <li>
+                      <strong>Normal Weather Calculation:</strong> Calculate "normal" weather conditions by averaging the frequency distribution across time horizon for all temperature bins
+                    </li>
+                    <li>
+                      <strong>Structural Demand Estimation:</strong> Estimate structural demand by applying normal temperature conditions to the average temperature-binned demand for each month
+                      <div class="ml-4 mt-1 text-sm">
+                        <strong>a.</strong> Fit a 3rd degree polynomial to estimate unobserved demand for a given temperature interval (Some temperature ranges might not have occurred in a specific year)
+                      </div>
+                    </li>
+                    <li>
+                      <strong>Aggregation:</strong> Aggregate monthly values to calculate total annual Structural Demand
+                    </li>
+                  </ol>
+                </div>
+                
+                <div>
+                  <h4 class="text-base font-bold text-gray-900 mb-2">Why this Matters:</h4>
+                  <p class="text-sm text-gray-700">
+                    Weather Normalization removes the impact of unusually hot/cold weather to better understand underlying demand growth trends
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          console.log('Structural demand script loaded');
+          
+          const toggle = document.getElementById('structural-demand-toggle');
+          const content = document.getElementById('structural-demand-content');
+          const arrow = document.getElementById('structural-demand-arrow');
+          
+          console.log('Elements found:', { toggle: !!toggle, content: !!content, arrow: !!arrow });
+          
+          if (toggle && content && arrow) {
+            toggle.addEventListener('click', function(e) {
+              e.preventDefault();
+              console.log('Toggle clicked');
+              
+              if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                arrow.style.transform = 'rotate(180deg)';
+                console.log('Expanded');
+              } else {
+                content.classList.add('hidden');
+                arrow.style.transform = 'rotate(0deg)';
+                console.log('Collapsed');
+              }
+            });
+          } else {
+            console.error('Could not find required elements');
+          }
+        });
+      </script>
+
+      <!-- ERCOT Structural Demand Section -->
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h2 class="text-2xl font-semibold text-gs-dark mb-4">ERCOT Weather Normalized Demand</h2>
+        <h2 class="text-xl font-semibold text-gs-dark mb-4">ERCOT Structural Demand</h2>
         <ERCOTDemandChart client:only="react" />
       </div>
 
-      <!-- Zonal YoY Growth Chart Section -->
+      <!-- Zonal Structural Demand Chart Section -->
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h2 class="text-2xl font-semibold text-gs-dark mb-4">ERCOT Zone Weather Normalized Demand</h2>
+        <h2 class="text-xl font-semibold text-gs-dark mb-4">ERCOT Zonal Structural Demand</h2>
         <ERCOTZonalSection client:only="react" />
       </div>
     </div>

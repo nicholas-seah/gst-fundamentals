@@ -32,7 +32,7 @@ interface ScenarioData {
 interface BessApiResponse {
   success: boolean;
   data?: {
-    years: number[];
+    years: string[]; // Now monthly labels like "Jan 2023"
     scenarios: ScenarioData;
     rawData: any[];
   };
@@ -75,13 +75,17 @@ const BESSCapacityChart: React.FC = () => {
         
         console.log('BESS API response:', result);
         
-        if (result.success && result.data) {
-          setRealData(result);
-          console.log('BESS data loaded successfully:', {
-            years: result.data.years.length,
-            records: result.metadata?.totalRecords || 0
-          });
-        } else {
+         if (result.success && result.data) {
+           setRealData(result);
+           console.log('BESS data loaded successfully:', {
+             years: result.data.years.length,
+             records: result.metadata?.totalRecords || 0
+           });
+           
+           // Debug: Show first and last few labels to understand the data
+           console.log('First 5 labels:', result.data.years.slice(0, 5));
+           console.log('Last 5 labels:', result.data.years.slice(-5));
+         } else {
           throw new Error(result.error || 'Failed to fetch BESS data');
         }
         
@@ -101,8 +105,8 @@ const BESSCapacityChart: React.FC = () => {
     fetchBessData();
   }, []);
 
-  // Determine which data to use
-  const years = realData?.data?.years || mockYears;
+  // Determine which data to use (monthly labels from API or fallback to mock years)
+  const years = realData?.data?.years || mockYears.map(y => `Jan ${y}`);
   const scenarioData = realData?.data?.scenarios || mockData;
 
   // Scenario selection state
@@ -182,11 +186,12 @@ const BESSCapacityChart: React.FC = () => {
       label: realData ? 'Historical Data (Database)' : 'Historical (Sample)',
       data: scenarioData.historical,
       borderColor: '#6366F1',
-      backgroundColor: 'rgba(99, 102, 241, 0.1)',
-      borderWidth: 3,
-      pointRadius: 4,
-      pointHoverRadius: 6,
+      backgroundColor: 'transparent', // Remove fill
+      borderWidth: 2,
+      pointRadius: 1, // Smaller points
+      pointHoverRadius: 4,
       tension: 0.1,
+      fill: false, // Ensure no fill
     });
   }
 
@@ -297,8 +302,21 @@ const BESSCapacityChart: React.FC = () => {
     }
   }
 
+  // Create year-only labels for every other year, positioned at the start of each year
+  const chartLabels = years.map((label, index) => {
+    if (typeof label === 'string' && label.startsWith('Jan')) {
+      // Extract year from "Jan 2023" and show just "2023"
+      const year = parseInt(label.split(' ')[1]);
+      // Show every other year (odd years: 2023, 2025, 2027, etc.)
+      if (year % 2 === 1) {
+        return year.toString();
+      }
+    }
+    return ''; // Hide labels for other months and even years
+  });
+  
   const chartData = {
-    labels: years,
+    labels: chartLabels, // Year labels positioned at January (start of each year)
     datasets: datasets,
   };
 
@@ -351,9 +369,9 @@ const BESSCapacityChart: React.FC = () => {
           }
         },
       },
-      title: {
-        display: false,
-      },
+       title: {
+         display: false,
+       },
       tooltip: {
         backgroundColor: 'rgba(0, 0, 0, 0.9)',
         titleFont: {
@@ -374,15 +392,18 @@ const BESSCapacityChart: React.FC = () => {
           // Hide connector lines from tooltips
           return !tooltipItem.dataset.label.includes('Connector');
         },
-        callbacks: {
-          title: function(context: any) {
-            return `Year: ${context[0].label}`;
-          },
-          label: function(context: any) {
-            if (context.parsed.y === null) return undefined;
-            return `${context.dataset.label}: ${(context.parsed.y / 1000).toFixed(1)}K MW`;
-          }
-        }
+         callbacks: {
+           title: function(context: any) {
+             // Show the full month/year in tooltip (from original years array)
+             const dataIndex = context[0].dataIndex;
+             const fullLabel = years[dataIndex];
+             return `Month: ${fullLabel}`;
+           },
+           label: function(context: any) {
+             if (context.parsed.y === null) return undefined;
+             return `${context.dataset.label}: ${(context.parsed.y / 1000).toFixed(1)}K MW`;
+           }
+         }
       },
     },
     scales: {
@@ -400,6 +421,7 @@ const BESSCapacityChart: React.FC = () => {
           },
           color: '#6B7280',
           padding: 8,
+          maxRotation: 0,
         },
       },
       y: {
@@ -416,9 +438,11 @@ const BESSCapacityChart: React.FC = () => {
           padding: { top: 0, bottom: 8 },
         },
         min: 0,
-        max: 130000,
+        // Dynamic max based on actual data with small headroom
+        max: Math.ceil((Math.max(...scenarioData.historical.filter(v => v !== null)) || 40000) * 1.1 / 5000) * 5000,
         ticks: {
-          stepSize: 20000,
+          // Dynamic step size based on data range  
+          stepSize: Math.ceil((Math.max(...scenarioData.historical.filter(v => v !== null)) || 40000) / 8 / 2500) * 2500,
           callback: function(value: any) {
             return (Number(value) / 1000).toFixed(0) + 'K';
           },
