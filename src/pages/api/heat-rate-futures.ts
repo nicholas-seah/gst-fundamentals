@@ -17,7 +17,7 @@ export const GET: APIRoute = async ({ request }) => {
       SELECT 
         MIN(EXTRACT(YEAR FROM "Contract_Begin")) as min_year,
         MAX(EXTRACT(YEAR FROM "Contract_Begin")) as max_year
-      FROM "ERCOT"."OTCGH_Calendar_Curves_PW"
+      FROM "ERCOT"."OTCGH_Calendar_Curves_PW_Extrapolated_25YR"
       WHERE "Contract_Term" = ${contractTerm}
         AND "Market" IN ('Houston', 'South', 'North', 'West_TX', 'SP_15')
         AND "Peak_Hour" = ${peakHour}
@@ -27,13 +27,13 @@ export const GET: APIRoute = async ({ request }) => {
       SELECT 
         MIN(EXTRACT(YEAR FROM "Contract_Begin")) as min_year,
         MAX(EXTRACT(YEAR FROM "Contract_Begin")) as max_year
-      FROM "ERCOT"."OTCGH_Calendar_Curves_NG"
+      FROM "ERCOT"."OTCGH_Calendar_Curves_NG_Extrapolated_25YR"
       WHERE "Contract_Term" = ${contractTerm}
         AND "Market" IN ('HSC', 'KATY', 'WAHA', 'EP WEST TX', 'SOCAL CITYGATE')
     `;
     
     const minYear = Math.max(powerYearsResult[0]?.min_year || 2025, gasYearsResult[0]?.min_year || 2025);
-    const maxYear = Math.min(powerYearsResult[0]?.max_year || 2034, gasYearsResult[0]?.max_year || 2034);
+    const maxYear = Math.min(powerYearsResult[0]?.max_year || 2050, gasYearsResult[0]?.max_year || 2050); // 25-year extrapolated curve (2025-2050)
     console.log(`Dynamic year range for ${contractTerm} heat rate: ${minYear} to ${maxYear}`);
 
     if (specificDate) {
@@ -45,14 +45,14 @@ export const GET: APIRoute = async ({ request }) => {
         SELECT MIN(max_date) as latest_curve_date
         FROM (
           SELECT MAX("Curve_Date") as max_date
-          FROM "ERCOT"."OTCGH_Calendar_Curves_PW"
+          FROM "ERCOT"."OTCGH_Calendar_Curves_PW_Extrapolated_25YR"
           WHERE "Contract_Term" = ${contractTerm}
             AND "Market" IN ('Houston', 'South', 'North', 'West_TX', 'SP_15')
             AND "Peak_Hour" = ${peakHour}
             AND EXTRACT(YEAR FROM "Contract_Begin") BETWEEN ${minYear} AND ${maxYear}
           UNION ALL
           SELECT MAX("Curve_Date") as max_date  
-          FROM "ERCOT"."OTCGH_Calendar_Curves_NG"
+          FROM "ERCOT"."OTCGH_Calendar_Curves_NG_Extrapolated_25YR"
           WHERE "Contract_Term" = ${contractTerm}
             AND "Market" IN ('HSC', 'KATY', 'WAHA', 'EP WEST TX', 'SOCAL CITYGATE')
             AND EXTRACT(YEAR FROM "Contract_Begin") BETWEEN ${minYear} AND ${maxYear}
@@ -76,7 +76,7 @@ export const GET: APIRoute = async ({ request }) => {
       Curve_Date: Date;
     }>>`
       SELECT "Market", "Mid", "ATC", "Contract_Begin", "Curve_Date"
-      FROM "ERCOT"."OTCGH_Calendar_Curves_PW"
+      FROM "ERCOT"."OTCGH_Calendar_Curves_PW_Extrapolated_25YR"
       WHERE "Curve_Date" = ${targetCurveDate}::date
         AND "Contract_Term" = ${contractTerm}
         AND "Market" IN ('Houston', 'South', 'North', 'West_TX', 'SP_15')
@@ -93,7 +93,7 @@ export const GET: APIRoute = async ({ request }) => {
       Curve_Date: Date;
     }>>`
       SELECT "Market", "FP", "Contract_Begin", "Curve_Date"
-      FROM "ERCOT"."OTCGH_Calendar_Curves_NG"
+      FROM "ERCOT"."OTCGH_Calendar_Curves_NG_Extrapolated_25YR"
       WHERE "Curve_Date" = ${targetCurveDate}::date
         AND "Contract_Term" = ${contractTerm}
         AND "Market" IN ('HSC', 'KATY', 'WAHA', 'EP WEST TX', 'SOCAL CITYGATE')
@@ -225,9 +225,6 @@ export const GET: APIRoute = async ({ request }) => {
         market: marketDisplayNames[powerMarket] || powerMarket
       };
       
-      let totalHeatRate = 0;
-      let heatRateCount = 0;
-      
       // Calculate heat rate for each year/month-year
       years.forEach(yearOrMonthYear => {
         const powerPrice = powerByMarketYear[powerMarket]?.[yearOrMonthYear];
@@ -236,21 +233,58 @@ export const GET: APIRoute = async ({ request }) => {
         if (powerPrice !== undefined && gasPrice !== undefined && gasPrice > 0) {
           const heatRate = powerPrice / gasPrice; // MMBtu/MWh
           marketData[yearOrMonthYear.toString()] = Number(heatRate.toFixed(2));
-          totalHeatRate += heatRate;
-          heatRateCount++;
         } else {
           marketData[yearOrMonthYear.toString()] = null; // Missing data
         }
       });
       
-      // Calculate 10-year average heat rate (only for Calendar contracts)
-      let tenYearAvg = null;
+      // Calculate multiple strip averages (only for Calendar contracts)
       if (contractTerm === 'Calendar') {
-        tenYearAvg = heatRateCount > 0 ? Number((totalHeatRate / heatRateCount).toFixed(2)) : null;
+        // 10-Year Strip (2025-2034)
+        const tenYearHeatRates = [];
+        for (let year = 2025; year <= 2034; year++) {
+          const powerPrice = powerByMarketYear[powerMarket]?.[year];
+          const gasPrice = gasByMarketYear[gasMarket]?.[year];
+          if (powerPrice !== undefined && gasPrice !== undefined && gasPrice > 0) {
+            tenYearHeatRates.push(powerPrice / gasPrice);
+          }
+        }
+        const tenYearAvg = tenYearHeatRates.length > 0 
+          ? Number((tenYearHeatRates.reduce((sum, hr) => sum + hr, 0) / tenYearHeatRates.length).toFixed(2))
+          : null;
         marketData['tenYearStrip'] = tenYearAvg;
+        
+        // 25-Year Strip (2025-2049)
+        const twentyFiveYearHeatRates = [];
+        for (let year = 2025; year <= 2049; year++) {
+          const powerPrice = powerByMarketYear[powerMarket]?.[year];
+          const gasPrice = gasByMarketYear[gasMarket]?.[year];
+          if (powerPrice !== undefined && gasPrice !== undefined && gasPrice > 0) {
+            twentyFiveYearHeatRates.push(powerPrice / gasPrice);
+          }
+        }
+        const twentyFiveYearAvg = twentyFiveYearHeatRates.length > 0
+          ? Number((twentyFiveYearHeatRates.reduce((sum, hr) => sum + hr, 0) / twentyFiveYearHeatRates.length).toFixed(2))
+          : null;
+        marketData['twentyFiveYearStrip'] = twentyFiveYearAvg;
+        
+        // Total Strip (2025-2050, entire curve)
+        const totalHeatRates = [];
+        for (let year = 2025; year <= 2050; year++) {
+          const powerPrice = powerByMarketYear[powerMarket]?.[year];
+          const gasPrice = gasByMarketYear[gasMarket]?.[year];
+          if (powerPrice !== undefined && gasPrice !== undefined && gasPrice > 0) {
+            totalHeatRates.push(powerPrice / gasPrice);
+          }
+        }
+        const totalAvg = totalHeatRates.length > 0
+          ? Number((totalHeatRates.reduce((sum, hr) => sum + hr, 0) / totalHeatRates.length).toFixed(2))
+          : null;
+        marketData['totalStrip'] = totalAvg;
       }
       
-      console.log(`${powerMarket} → ${gasMarket}: ${heatRateCount} heat rates${contractTerm === 'Calendar' ? `, avg = ${tenYearAvg}` : ' (no avg for Month)'}`);
+      const heatRateCount = years.filter(y => marketData[y.toString()] !== null).length;
+      console.log(`${powerMarket} → ${gasMarket}: ${heatRateCount} heat rates${contractTerm === 'Calendar' ? `, 10Y avg = ${marketData['tenYearStrip']}, 25Y avg = ${marketData['twentyFiveYearStrip']}, Total avg = ${marketData['totalStrip']}` : ' (no avg for Month)'}`);
       
       return marketData;
     });
@@ -270,8 +304,8 @@ export const GET: APIRoute = async ({ request }) => {
         latestCurveDate: typeof targetCurveDate === 'string' ? targetCurveDate : (targetCurveDate ? new Date(targetCurveDate).toISOString().split('T')[0] : null),
         units: 'MMBtu/MWh',
         dateRange: `${minYear}-${maxYear}`,
-        powerSource: 'ERCOT.OTCGH_Calendar_Curves_PW',
-        gasSource: 'ERCOT.OTCGH_Calendar_Curves_NG',
+        powerSource: 'ERCOT.OTCGH_Calendar_Curves_PW_Extrapolated_25YR',
+        gasSource: 'ERCOT.OTCGH_Calendar_Curves_NG_Extrapolated_25YR',
         peakHour,
         contractTerm,
         yearRange: { minYear, maxYear },

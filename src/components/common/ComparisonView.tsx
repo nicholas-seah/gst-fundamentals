@@ -11,6 +11,7 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import CurveDateCalendar from './CurveDateCalendar';
+import DateRangeSlider from './DateRangeSlider';
 
 ChartJS.register(
   CategoryScale,
@@ -82,6 +83,9 @@ const ComparisonView: React.FC<Props> = ({ contractTerm }) => {
 
   // Chart visibility controls
   const [visibleHubs, setVisibleHubs] = useState<{ [hub: string]: boolean }>({});
+
+  // Date range filter for chart
+  const [dateRangeFilter, setDateRangeFilter] = useState<[number, number]>([0, 0]);
 
   // Fetch available dates on mount and when contract term changes
   useEffect(() => {
@@ -280,7 +284,7 @@ const ComparisonView: React.FC<Props> = ({ contractTerm }) => {
       'Waha': '#F59E0B',          // Orange
       'Henry': '#EF4444',         // Red
       'El Paso': '#8B5CF6',       // Purple
-      'SoCal City': '#06B6D4',    // Cyan
+      'SoCal Citygate': '#06B6D4',    // Cyan
       'Houston': '#3B82F6',       // Blue
       'ERCOT South': '#10B981',   // Green
       'ERCOT North': '#F59E0B',   // Orange
@@ -305,7 +309,7 @@ const ComparisonView: React.FC<Props> = ({ contractTerm }) => {
         { value: 'Waha', label: 'Waha' },
         { value: 'Henry', label: 'Henry' },
         { value: 'El Paso', label: 'El Paso' },
-        { value: 'SoCal City', label: 'SoCal City' },
+        { value: 'SoCal Citygate', label: 'SoCal Citygate' },
       ];
     } else {
       // Power and Heat Rate use the same hubs
@@ -319,6 +323,15 @@ const ComparisonView: React.FC<Props> = ({ contractTerm }) => {
     }
   };
 
+  // Helper function to get available years from selected curves
+  const getAvailableYears = (): (string | number)[] => {
+    const curvesWithData = selectedCurves.filter(curve => curve.data?.data);
+    if (curvesWithData.length === 0) return [];
+    
+    const firstCurve = curvesWithData[0];
+    return firstCurve.data?.data?.years || [];
+  };
+
   const renderMultiCurveChart = () => {
     if (selectedCurves.length === 0) return null;
 
@@ -328,7 +341,15 @@ const ComparisonView: React.FC<Props> = ({ contractTerm }) => {
 
     // Use the first curve to determine years structure
     const firstCurve = curvesWithData[0];
-    const years = firstCurve.data?.data?.years || [];
+    const allYears = firstCurve.data?.data?.years || [];
+    
+    // Initialize date range filter to full range if not set
+    if (dateRangeFilter[1] === 0 && allYears.length > 0) {
+      setDateRangeFilter([0, allYears.length - 1]);
+    }
+    
+    // Filter years based on date range selection
+    const years = allYears.slice(dateRangeFilter[0], dateRangeFilter[1] + 1);
     
     const datasets = [];
 
@@ -340,8 +361,10 @@ const ComparisonView: React.FC<Props> = ({ contractTerm }) => {
       const hubRow = curve.data.data.tableData.find(row => row.market === curve.hub);
       if (!hubRow) return;
 
-      const data = years.map(year => {
-        const price = hubRow[year.toString()];
+      const data = years.map((year, index) => {
+        const actualYearIndex = dateRangeFilter[0] + index;
+        const actualYear = allYears[actualYearIndex];
+        const price = hubRow[actualYear.toString()];
         return typeof price === 'number' ? price : null;
       });
 
@@ -742,7 +765,7 @@ const ComparisonView: React.FC<Props> = ({ contractTerm }) => {
       'Waha': '#F59E0B',          // Orange
       'Henry': '#EF4444',         // Red
       'El Paso': '#8B5CF6',       // Purple
-      'SoCal City': '#06B6D4',    // Cyan
+      'SoCal Citygate': '#06B6D4',    // Cyan
       'Houston': '#3B82F6',       // Blue
       'ERCOT South': '#10B981',   // Green
       'ERCOT North': '#F59E0B',   // Orange
@@ -1102,7 +1125,7 @@ const ComparisonView: React.FC<Props> = ({ contractTerm }) => {
       <div className="bg-gray-50 rounded-lg p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Curve Selection</h3>
         
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
           {/* Mark Date */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Mark Date</label>
@@ -1188,22 +1211,34 @@ const ComparisonView: React.FC<Props> = ({ contractTerm }) => {
              </p>
            </div>
 
-           {/* Chart */}
-           <div className="h-96">
-             {selectedCurves.length > 0 ? (
-               renderMultiCurveChart()
-             ) : (
-               <div className="flex items-center justify-center h-full bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                 <div className="text-center">
-                   <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                   </svg>
-                   <h4 className="mt-2 text-sm font-medium text-gray-900">No curves selected</h4>
-                   <p className="mt-1 text-sm text-gray-500">Add curves using the controls above to start comparing</p>
-                 </div>
-               </div>
-             )}
-           </div>
+          {/* Chart */}
+          <div className="h-96">
+            {selectedCurves.length > 0 ? (
+              renderMultiCurveChart()
+            ) : (
+              <div className="flex items-center justify-center h-full bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                <div className="text-center">
+                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  <h4 className="mt-2 text-sm font-medium text-gray-900">No curves selected</h4>
+                  <p className="mt-1 text-sm text-gray-500">Add curves using the controls above to start comparing</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Date Range Slider */}
+          {selectedCurves.length > 0 && getAvailableYears().length > 0 && (
+            <div className="mt-4">
+              <DateRangeSlider
+                availableDates={getAvailableYears()}
+                selectedRange={dateRangeFilter}
+                onRangeChange={setDateRangeFilter}
+                contractTerm={contractTerm}
+              />
+            </div>
+          )}
          </div>
        </div>
 

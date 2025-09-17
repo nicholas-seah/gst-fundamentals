@@ -13,12 +13,12 @@ export const GET: APIRoute = async ({ request }) => {
       SELECT DISTINCT "Curve_Date" as curve_date
       FROM (
         SELECT "Curve_Date"
-        FROM "ERCOT"."OTCGH_Calendar_Curves_NG"
+        FROM "ERCOT"."OTCGH_Calendar_Curves_NG_Extrapolated_25YR"
         WHERE "Contract_Term" = ${contractTerm}
           AND "Market" IN ('HSC', 'EP WEST TX', 'WAHA', 'SOCAL CITYGATE', 'HENRY BASIS', 'KATY')
         UNION
         SELECT "Curve_Date"
-        FROM "ERCOT"."OTCGH_Calendar_Curves_PW"
+        FROM "ERCOT"."OTCGH_Calendar_Curves_PW_Extrapolated_25YR"
         WHERE "Contract_Term" = ${contractTerm}
           AND "Market" IN ('Houston', 'South', 'North', 'West_TX', 'SP_15')
       ) combined_dates

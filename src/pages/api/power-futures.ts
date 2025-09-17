@@ -14,21 +14,21 @@ export const GET: APIRoute = async ({ request }) => {
     let minYear, maxYear;
     if (contractTerm === 'Calendar') {
       minYear = 2025;
-      maxYear = 2034;
+      maxYear = 2050; // 25-year extrapolated curve (2025-2050)
     } else {
       // Get dynamic years for Month contracts
       const availableYearsResult = await ercotDb.$queryRaw<Array<{ min_year: number; max_year: number }>>`
         SELECT 
           MIN(EXTRACT(YEAR FROM "Contract_Begin")) as min_year,
           MAX(EXTRACT(YEAR FROM "Contract_Begin")) as max_year
-        FROM "ERCOT"."OTCGH_Calendar_Curves_PW"
+        FROM "ERCOT"."OTCGH_Calendar_Curves_PW_Extrapolated_25YR"
         WHERE "Contract_Term" = ${contractTerm}
           AND "Market" IN ('South', 'North', 'Houston', 'SP_15', 'West_TX')
           AND "Peak_Hour" = ${peakHour}
       `;
       
       minYear = availableYearsResult[0]?.min_year || 2025;
-      maxYear = availableYearsResult[0]?.max_year || 2035;
+      maxYear = availableYearsResult[0]?.max_year || 2050; // 25-year extrapolated curve fallback
     }
     console.log(`Year range for ${contractTerm} power: ${minYear} to ${maxYear}`);
 
@@ -45,7 +45,7 @@ export const GET: APIRoute = async ({ request }) => {
         Contract_Term: string;
       }>>`
         SELECT "Market", "Mid", "ATC", "Contract_Begin", "Curve_Date", "Peak_Hour", "Contract_Term"
-        FROM "ERCOT"."OTCGH_Calendar_Curves_PW"
+        FROM "ERCOT"."OTCGH_Calendar_Curves_PW_Extrapolated_25YR"
         WHERE "Curve_Date" = ${specificDate}::date
           AND "Contract_Term" = ${contractTerm}
           AND "Market" IN ('South', 'North', 'Houston', 'SP_15', 'West_TX')
@@ -65,14 +65,14 @@ export const GET: APIRoute = async ({ request }) => {
       }>>`
         WITH latest_curve_date AS (
           SELECT MAX("Curve_Date") as max_curve_date
-          FROM "ERCOT"."OTCGH_Calendar_Curves_PW"
+          FROM "ERCOT"."OTCGH_Calendar_Curves_PW_Extrapolated_25YR"
           WHERE "Contract_Term" = ${contractTerm}
             AND "Market" IN ('South', 'North', 'Houston', 'SP_15', 'West_TX')
             AND "Peak_Hour" = ${peakHour === 'ATC' ? 'ON_PEAK' : peakHour}
             AND EXTRACT(YEAR FROM "Contract_Begin") BETWEEN ${minYear} AND ${maxYear}
         )
         SELECT pw."Market", pw."Mid", pw."ATC", pw."Contract_Begin", pw."Curve_Date", pw."Peak_Hour", pw."Contract_Term"
-        FROM "ERCOT"."OTCGH_Calendar_Curves_PW" pw
+        FROM "ERCOT"."OTCGH_Calendar_Curves_PW_Extrapolated_25YR" pw
         CROSS JOIN latest_curve_date lc
         WHERE pw."Curve_Date" = lc.max_curve_date
           AND pw."Contract_Term" = ${contractTerm}
@@ -173,35 +173,88 @@ export const GET: APIRoute = async ({ request }) => {
       }
     });
 
+    // Filter out month-year columns with insufficient data (only for Month contracts)
+    if (contractTerm === 'Month') {
+      const minMarketsWithData = 3; // At least 3 out of 5 settlement points must have data
+      const filteredYears = years.filter(monthYear => {
+        let marketsWithData = 0;
+        markets.forEach(market => {
+          if (dataByMarketYear[market]?.[monthYear] !== undefined && dataByMarketYear[market]?.[monthYear] !== null) {
+            marketsWithData++;
+          }
+        });
+        return marketsWithData >= minMarketsWithData;
+      });
+      
+      console.log(`Power filtered month-years: ${filteredYears.length}/${years.length} columns kept (${years.length - filteredYears.length} sparse columns removed)`);
+      if (filteredYears.length !== years.length) {
+        const removedColumns = years.filter(y => !filteredYears.includes(y));
+        console.log(`Power removed sparse columns: ${removedColumns.join(', ')}`);
+      }
+      
+      years = filteredYears;
+    }
+
     // Build the table data structure
     const tableData = markets.map(market => {
       const marketData: { [key: string]: number | string | null } = {
         market: marketDisplayNames[market] || market
       };
       
-      let totalPrice = 0;
-      let priceCount = 0;
-      
-      // Add data for each year/month-year and calculate running total
+      // Add data for each year/month-year
       years.forEach(yearOrMonthYear => {
         const price = dataByMarketYear[market]?.[yearOrMonthYear];
         if (price !== undefined && price !== null) {
           marketData[yearOrMonthYear.toString()] = Number(price.toFixed(2)); // Round to 2 decimal places
-          totalPrice += price;
-          priceCount++;
         } else {
           marketData[yearOrMonthYear.toString()] = null; // No data available
         }
       });
       
-      // Calculate 10-year average (only for Calendar contracts)
-      let tenYearAvg = null;
+      // Calculate multiple strip averages (only for Calendar contracts)
       if (contractTerm === 'Calendar') {
-        tenYearAvg = priceCount > 0 ? Number((totalPrice / priceCount).toFixed(2)) : null;
+        // 10-Year Strip (2025-2034)
+        const tenYearPrices = [];
+        for (let year = 2025; year <= 2034; year++) {
+          const price = dataByMarketYear[market]?.[year];
+          if (price !== undefined && price !== null) {
+            tenYearPrices.push(price);
+          }
+        }
+        const tenYearAvg = tenYearPrices.length > 0 
+          ? Number((tenYearPrices.reduce((sum, p) => sum + p, 0) / tenYearPrices.length).toFixed(2))
+          : null;
         marketData['tenYearStrip'] = tenYearAvg;
+        
+        // 25-Year Strip (2025-2049)
+        const twentyFiveYearPrices = [];
+        for (let year = 2025; year <= 2049; year++) {
+          const price = dataByMarketYear[market]?.[year];
+          if (price !== undefined && price !== null) {
+            twentyFiveYearPrices.push(price);
+          }
+        }
+        const twentyFiveYearAvg = twentyFiveYearPrices.length > 0
+          ? Number((twentyFiveYearPrices.reduce((sum, p) => sum + p, 0) / twentyFiveYearPrices.length).toFixed(2))
+          : null;
+        marketData['twentyFiveYearStrip'] = twentyFiveYearAvg;
+        
+        // Total Strip (2025-2050, entire curve)
+        const totalPrices = [];
+        for (let year = 2025; year <= 2050; year++) {
+          const price = dataByMarketYear[market]?.[year];
+          if (price !== undefined && price !== null) {
+            totalPrices.push(price);
+          }
+        }
+        const totalAvg = totalPrices.length > 0
+          ? Number((totalPrices.reduce((sum, p) => sum + p, 0) / totalPrices.length).toFixed(2))
+          : null;
+        marketData['totalStrip'] = totalAvg;
       }
       
-      console.log(`${market}: ${priceCount} prices${contractTerm === 'Calendar' ? `, avg = ${tenYearAvg}` : ' (no avg for Month)'}`);
+      const priceCount = years.filter(y => marketData[y.toString()] !== null).length;
+      console.log(`${market}: ${priceCount} prices${contractTerm === 'Calendar' ? `, 10Y avg = ${marketData['tenYearStrip']}, 25Y avg = ${marketData['twentyFiveYearStrip']}, Total avg = ${marketData['totalStrip']}` : ' (no avg for Month)'}`);
       
       return marketData;
     });
@@ -225,7 +278,7 @@ export const GET: APIRoute = async ({ request }) => {
         latestCurveDate: latestCurveDate ? new Date(latestCurveDate).toISOString().split('T')[0] : null,
         units: '$/MWh',
         dateRange: `${minYear}-${maxYear}`,
-        dataSource: 'ERCOT.OTCGH_Calendar_Curves_PW',
+        dataSource: 'ERCOT.OTCGH_Calendar_Curves_PW_Extrapolated_25YR',
         peakHour,
         contractTerm,
         yearRange: { minYear, maxYear }

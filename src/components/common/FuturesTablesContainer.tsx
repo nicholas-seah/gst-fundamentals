@@ -46,7 +46,7 @@ const FuturesTablesContainer: React.FC = () => {
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
-            Up-to-Date Curve
+            Latest Curve
           </button>
           <button
             onClick={() => setViewMode('comparison')}

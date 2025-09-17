@@ -7,6 +7,8 @@ interface NaturalGasFuturesData {
       market: string;
       [year: string]: number | string | null;
       tenYearStrip: number | null;
+      twentyFiveYearStrip: number | null;
+      totalStrip: number | null;
     }>;
     years: number[];
     markets: string[];
@@ -89,6 +91,15 @@ const NaturalGasFuturesTable: React.FC<Props> = ({ contractTerm }) => {
     return price.toFixed(2);
   };
 
+  // Helper function to check if a year/month-year represents January (start of year)
+  const isJanuary = (yearOrMonthYear: string | number): boolean => {
+    if (contractTerm === 'Month') {
+      // For month contracts, check if it starts with "Jan"
+      return typeof yearOrMonthYear === 'string' && yearOrMonthYear.startsWith('Jan ');
+    }
+    return false; // Calendar contracts don't need January highlighting
+  };
+
   return (
     <div className="space-y-4">
              {/* Table Header Info */}
@@ -106,15 +117,30 @@ const NaturalGasFuturesTable: React.FC<Props> = ({ contractTerm }) => {
             <tr className="border-b border-gray-200 bg-gray-50">
               <th className="text-left p-3 font-medium text-gray-700 sticky left-0 bg-gray-50">Settlement Point</th>
               {data.data.years.map(year => (
-                <th key={year} className="text-center p-3 font-medium text-gray-700 min-w-[80px]">
+                <th 
+                  key={year} 
+                  className={`text-center p-3 font-medium min-w-[80px] ${
+                    isJanuary(year) 
+                      ? 'bg-blue-50 text-blue-700' 
+                      : 'text-gray-700'
+                  }`}
+                >
                   {year}
                 </th>
               ))}
-                             {contractTerm === 'Calendar' && (
-                 <th className="text-center p-3 font-medium text-gray-700 min-w-[100px] bg-blue-50">
-                   10-Year Strip
-                 </th>
-               )}
+              {contractTerm === 'Calendar' && (
+                <>
+                  <th className="text-center p-3 font-medium text-gray-700 min-w-[100px] bg-blue-50">
+                    10-Year Strip
+                  </th>
+                  <th className="text-center p-3 font-medium text-gray-700 min-w-[100px] bg-green-50">
+                    25-Year Strip
+                  </th>
+                  <th className="text-center p-3 font-medium text-gray-700 min-w-[100px] bg-purple-50">
+                    Total Strip
+                  </th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody className="font-mono">
@@ -127,15 +153,30 @@ const NaturalGasFuturesTable: React.FC<Props> = ({ contractTerm }) => {
                   {row.market}
                 </td>
                 {data.data.years.map(year => (
-                  <td key={year} className="p-3 text-center text-gray-800">
+                  <td 
+                    key={year} 
+                    className={`p-3 text-center ${
+                      isJanuary(year) 
+                        ? 'bg-blue-50 text-blue-800 font-semibold' 
+                        : 'text-gray-800'
+                    }`}
+                  >
                     {formatPrice(row[year.toString()])}
                   </td>
                 ))}
-                                 {contractTerm === 'Calendar' && (
-                   <td className="p-3 text-center font-semibold text-blue-700 bg-blue-50">
-                     {formatPrice(row.tenYearStrip)}
-                   </td>
-                 )}
+                {contractTerm === 'Calendar' && (
+                  <>
+                    <td className="p-3 text-center font-semibold text-blue-700 bg-blue-50">
+                      {formatPrice(row.tenYearStrip)}
+                    </td>
+                    <td className="p-3 text-center font-semibold text-green-700 bg-green-50">
+                      {formatPrice(row.twentyFiveYearStrip)}
+                    </td>
+                    <td className="p-3 text-center font-semibold text-purple-700 bg-purple-50">
+                      {formatPrice(row.totalStrip)}
+                    </td>
+                  </>
+                )}
               </tr>
             ))}
           </tbody>
