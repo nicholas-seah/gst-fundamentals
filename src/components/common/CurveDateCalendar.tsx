@@ -94,7 +94,10 @@ const CurveDateCalendar: React.FC<CurveDateCalendarProps> = ({
 
   const formatDisplayDate = (dateStr: string) => {
     if (!dateStr) return placeholder;
-    return new Date(dateStr).toLocaleDateString('en-US', {
+    // Parse YYYY-MM-DD format directly to avoid timezone issues
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day); // month - 1 because Date constructor uses 0-based months
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
