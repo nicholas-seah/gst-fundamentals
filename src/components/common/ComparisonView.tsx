@@ -179,7 +179,9 @@ const ComparisonView: React.FC<Props> = ({ contractTerm }) => {
 
   // Format date for display in selected curves
   const formatDateForDisplay = (dateStr: string) => {
-    const date = new Date(dateStr);
+    // Parse YYYY-MM-DD format directly to avoid timezone issues
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day); // month - 1 because Date constructor uses 0-based months
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
