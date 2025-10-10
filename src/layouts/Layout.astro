@@ -15,10 +15,11 @@ const { title } = Astro.props;
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
-    <!-- Favicon - New GridStor favicon -->
-    <link rel="icon" href="/new-favicon.png" type="image/png">
-    <link rel="apple-touch-icon" href="/new-favicon.png">
-    <link rel="shortcut icon" href="/new-favicon.png">
+    <!-- Favicon - New GridStor favicon with cache busting -->
+    <link rel="icon" href="/new-favicon.png?v=2" type="image/png">
+    <link rel="apple-touch-icon" href="/new-favicon.png?v=2">
+    <link rel="shortcut icon" href="/new-favicon.png?v=2">
+    <link rel="icon" href="/new-favicon.png?v=2" sizes="32x32" type="image/png">
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
