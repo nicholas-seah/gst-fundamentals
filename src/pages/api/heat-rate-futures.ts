@@ -74,8 +74,9 @@ export const GET: APIRoute = async ({ request }) => {
       ATC: number | string;
       Contract_Begin: Date;
       Curve_Date: Date;
+      update_time_utc: Date;
     }>>`
-      SELECT "Market", "Mid", "ATC", "Contract_Begin", "Curve_Date"
+      SELECT "Market", "Mid", "ATC", "Contract_Begin", "Curve_Date", "Update Time UTC" as update_time_utc
       FROM "ERCOT"."OTCGH_Calendar_Curves_PW_Extrapolated_25YR"
       WHERE "Curve_Date" = ${targetCurveDate}::date
         AND "Contract_Term" = ${contractTerm}
@@ -302,6 +303,9 @@ export const GET: APIRoute = async ({ request }) => {
         powerDataPoints: powerData.length,
         gasDataPoints: gasData.length,
         latestCurveDate: typeof targetCurveDate === 'string' ? targetCurveDate : (targetCurveDate ? new Date(targetCurveDate).toISOString().split('T')[0] : null),
+        updateTimeUTC: powerData.length > 0 && powerData[0].update_time_utc
+          ? new Date(powerData[0].update_time_utc).toISOString().replace('T', ' ').substring(0, 16)
+          : new Date().toISOString().replace('T', ' ').substring(0, 16),
         units: 'MMBtu/MWh',
         dateRange: `${minYear}-${maxYear}`,
         powerSource: 'ERCOT.OTCGH_Calendar_Curves_PW_Extrapolated_25YR',

@@ -18,6 +18,7 @@ interface HeatRateFuturesData {
     powerDataPoints: number;
     gasDataPoints: number;
     latestCurveDate: string | null;
+    updateTimeUTC: string | null;
     units: string;
     dateRange: string;
     powerSource: string;
@@ -235,9 +236,12 @@ const HeatRateFuturesTable: React.FC<Props> = ({ contractTerm }) => {
       </div>
       
       {/* Source text at bottom right - outside scrollable area */}
-      <div className="text-right mt-2">
+      <div className="text-right mt-2 space-y-1">
         <div className="text-xs text-gray-400">
           Source: OTCGH {data.metadata?.latestCurveDate || 'N/A'}
+        </div>
+        <div className="text-xs text-gray-400">
+          Updated: {data.metadata?.updateTimeUTC || 'N/A'} (UTC)
         </div>
       </div>
 

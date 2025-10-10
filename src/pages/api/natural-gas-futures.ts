@@ -40,8 +40,9 @@ export const GET: APIRoute = async ({ request }) => {
         Contract_Begin: Date;
         Curve_Date: Date;
         Contract_Term: string;
+        update_time_utc: Date;
       }>>`
-        SELECT "Market", "FP", "Contract_Begin", "Curve_Date", "Contract_Term"
+        SELECT "Market", "FP", "Contract_Begin", "Curve_Date", "Contract_Term", "Update Time UTC" as update_time_utc
         FROM "ERCOT"."OTCGH_Calendar_Curves_NG_Extrapolated_25YR"
         WHERE "Curve_Date" = ${specificDate}::date
           AND "Contract_Term" = ${contractTerm}
@@ -57,6 +58,7 @@ export const GET: APIRoute = async ({ request }) => {
         Contract_Begin: Date;
         Curve_Date: Date;
         Contract_Term: string;
+        update_time_utc: Date;
       }>>`
         WITH latest_curve_date AS (
           SELECT MAX("Curve_Date") as max_curve_date
@@ -65,7 +67,7 @@ export const GET: APIRoute = async ({ request }) => {
             AND "Market" IN ('HSC', 'EP WEST TX', 'WAHA', 'SOCAL CITYGATE', 'HENRY BASIS', 'KATY')
             AND EXTRACT(YEAR FROM "Contract_Begin") BETWEEN ${minYear} AND ${maxYear}
         )
-        SELECT ng."Market", ng."FP", ng."Contract_Begin", ng."Curve_Date", ng."Contract_Term"
+        SELECT ng."Market", ng."FP", ng."Contract_Begin", ng."Curve_Date", ng."Contract_Term", ng."Update Time UTC" as update_time_utc
         FROM "ERCOT"."OTCGH_Calendar_Curves_NG_Extrapolated_25YR" ng
         CROSS JOIN latest_curve_date lc
         WHERE ng."Curve_Date" = lc.max_curve_date
@@ -257,10 +259,23 @@ export const GET: APIRoute = async ({ request }) => {
       return marketData;
     });
 
-    // Get the latest curve date for metadata
+    // Get the latest curve date and update time for metadata
     const latestCurveDate = rawData.length > 0 
       ? Math.max(...rawData.map(row => new Date(row.Curve_Date).getTime()))
       : null;
+    
+    // Debug: Check if Update Time UTC column is being retrieved
+    if (rawData.length > 0) {
+      console.log('Available columns after adding Update Time UTC:', Object.keys(rawData[0]));
+      console.log('update_time_utc value:', rawData[0].update_time_utc);
+      console.log('update_time_utc type:', typeof rawData[0].update_time_utc);
+    }
+    
+    const updateTimeUTC = rawData.length > 0 && rawData[0].update_time_utc
+      ? new Date(rawData[0].update_time_utc).toISOString().replace('T', ' ').substring(0, 16) // Extract YYYY-MM-DD HH:MM format
+      : new Date().toISOString().replace('T', ' ').substring(0, 16); // Fallback to current time
+      
+    console.log('Final update time result:', updateTimeUTC);
 
     const response = {
       success: true,
@@ -273,6 +288,7 @@ export const GET: APIRoute = async ({ request }) => {
       metadata: {
         rawDataPoints: rawData.length,
         latestCurveDate: latestCurveDate ? new Date(latestCurveDate).toISOString().split('T')[0] : null,
+        updateTimeUTC: updateTimeUTC,
         units: '$/MMBtu',
         dateRange: `${minYear}-${maxYear}`,
         dataSource: 'ERCOT.OTCGH_Calendar_Curves_NG_Extrapolated_25YR',

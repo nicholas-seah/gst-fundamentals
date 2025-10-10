@@ -37,7 +37,7 @@ const Navbar: React.FC = () => {
 
   return (
     <header className="bg-[#2A2A2A] text-white shadow-sm">
-      <div className="max-w-7xl mx-auto pl-8 pr-4 sm:pl-10 sm:pr-6 lg:pl-16 lg:pr-8">
+      <div className="max-w-7xl mx-auto pl-2 pr-4 sm:pl-3 sm:pr-6 lg:pl-4 lg:pr-8">
         <div className="flex justify-between items-center py-3">
           
           {/* LEFT SIDE: Logo + Brand + Navigation */}
@@ -46,19 +46,14 @@ const Navbar: React.FC = () => {
             {/* GridStor Logo */}
             <a 
               href="https://gridstoranalytics.com" 
-              className="hover:text-gray-300 transition-colors"
+              className="hover:opacity-80 transition-opacity"
             >
-              <div className="bg-white p-1 flex items-center justify-center w-8 h-8">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-6 h-6">
-                  <g transform="translate(2, 2) scale(0.875)">
-                    <path d="M4 8 L14 8 L14 11 L7 11 L7 21 L14 21 L14 18 L10 18 L10 15 L14 15 L14 24 L4 24 C4 24 4 8 4 8" 
-                          fill="#2F3640"/>
-                    <path d="M13.5 13 L18 13 L15 17.5 L19 17.5 L14 24 L15.5 17.5 L12.5 17.5 L13.5 13" 
-                          fill="#40C4DE"/>
-                    <path d="M18 8 L28 8 L28 11 L21 11 L21 15 L28 15 L28 24 L18 24 L18 21 L25 21 L25 18 L18 18 Z" 
-                          fill="#2F3640"/>
-                  </g>
-                </svg>
+              <div className="bg-white p-2 flex items-center justify-center">
+                <img 
+                  src="/new-logo.png" 
+                  alt="GridStor Analytics Logo" 
+                  className="h-6 w-auto"
+                />
               </div>
             </a>
             

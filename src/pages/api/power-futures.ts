@@ -43,8 +43,9 @@ export const GET: APIRoute = async ({ request }) => {
         Curve_Date: Date;
         Peak_Hour: string;
         Contract_Term: string;
+        update_time_utc: Date;
       }>>`
-        SELECT "Market", "Mid", "ATC", "Contract_Begin", "Curve_Date", "Peak_Hour", "Contract_Term"
+        SELECT "Market", "Mid", "ATC", "Contract_Begin", "Curve_Date", "Peak_Hour", "Contract_Term", "Update Time UTC"
         FROM "ERCOT"."OTCGH_Calendar_Curves_PW_Extrapolated_25YR"
         WHERE "Curve_Date" = ${specificDate}::date
           AND "Contract_Term" = ${contractTerm}
@@ -62,6 +63,7 @@ export const GET: APIRoute = async ({ request }) => {
         Curve_Date: Date;
         Peak_Hour: string;
         Contract_Term: string;
+        update_time_utc: Date;
       }>>`
         WITH latest_curve_date AS (
           SELECT MAX("Curve_Date") as max_curve_date
@@ -71,7 +73,7 @@ export const GET: APIRoute = async ({ request }) => {
             AND "Peak_Hour" = ${peakHour === 'ATC' ? 'ON_PEAK' : peakHour}
             AND EXTRACT(YEAR FROM "Contract_Begin") BETWEEN ${minYear} AND ${maxYear}
         )
-        SELECT pw."Market", pw."Mid", pw."ATC", pw."Contract_Begin", pw."Curve_Date", pw."Peak_Hour", pw."Contract_Term"
+        SELECT pw."Market", pw."Mid", pw."ATC", pw."Contract_Begin", pw."Curve_Date", pw."Peak_Hour", pw."Contract_Term", pw."Update Time UTC" as update_time_utc
         FROM "ERCOT"."OTCGH_Calendar_Curves_PW_Extrapolated_25YR" pw
         CROSS JOIN latest_curve_date lc
         WHERE pw."Curve_Date" = lc.max_curve_date
@@ -259,10 +261,14 @@ export const GET: APIRoute = async ({ request }) => {
       return marketData;
     });
 
-    // Get the latest curve date for metadata
+    // Get the latest curve date and update time for metadata
     const latestCurveDate = rawData.length > 0 
       ? Math.max(...rawData.map(row => new Date(row.Curve_Date).getTime()))
       : null;
+    
+    const updateTimeUTC = rawData.length > 0 && rawData[0].update_time_utc
+      ? new Date(rawData[0].update_time_utc).toISOString().replace('T', ' ').substring(0, 16) // Extract YYYY-MM-DD HH:MM format
+      : new Date().toISOString().replace('T', ' ').substring(0, 16); // Fallback to current time
 
     const response = {
       success: true,
@@ -276,6 +282,7 @@ export const GET: APIRoute = async ({ request }) => {
       metadata: {
         rawDataPoints: rawData.length,
         latestCurveDate: latestCurveDate ? new Date(latestCurveDate).toISOString().split('T')[0] : null,
+        updateTimeUTC: updateTimeUTC,
         units: '$/MWh',
         dateRange: `${minYear}-${maxYear}`,
         dataSource: 'ERCOT.OTCGH_Calendar_Curves_PW_Extrapolated_25YR',
